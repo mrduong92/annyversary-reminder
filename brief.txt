@@ -1,0 +1,15 @@
+lên plan để thực hiện dự án mới tinh, phục vụ mục đích thương mại.
+chức năng chính: Zalo Mini App nhắc lịch giỗ.
+bối cảnh: ở Việt Nam, một năm có rất nhiều ngày giỗ (âm lịch) khiến việc quản lý cực kỳ khó khăn, dễ bị quên. mỗi năm thì lịch này đều khác nhau theo dương lịch.
+tôi cần làm 1 ứng dụng AI Agent nhắc lịch giỗ để gửi cho 1 người hoặc 1 nhóm người thông qua Zalo (có thể phải là Zalo OA mất phí).
+ngoài lịch giỗ ra, có thêm option mặc định ngày rằm (ngày 15) và mùng 1 hàng tháng.
+ứng dụng nhận input đầu vào của người dùng có thể thông qua chat hoặc phân tích ảnh (OCR chữ viết tay hoặc đánh máy).
+bạn hãy lên plan cho tôi thực hiện ý tưởng này
+
+hãy cùng tôi review lại use case của người dùng đã:
+1. người dùng có thể upload ảnh để import thông tin lịch giỗ bao gồm nhiều thông tin, xem file sample-data.jpg.
+2. hệ thống gửi lại thông tin đã đọc được từ ảnh, yêu cầu người dùng xác nhận, hoặc sửa lại 1 vài dòng cụ thể
+3. sau khi người dùng xác nhận, lưu vào DB, show ra CRM và tạo schedule nhắc lịch giỗ (7 ngày, 3 ngày, 1 ngày)
+4. người dùng có thể xem lại danh sách lịch giỗ của mình bằng cách đặt câu hỏi. ví dụ: "danh sách ngày giỗ của tôi như nào?"
+5. người dùng có thể sửa, xoá ngày giỗ cụ thể nếu không cần thiết.
+6. người dùng có thể hỏi toàn bộ thông tin khác liên quan đến data của mình. VD: giỗ ông nội tôi năm nay vào ngày nào dương lịch? => từ 3/4 âm lịch đã lưu trong DB, trả lời ngày: 19/5/2026
