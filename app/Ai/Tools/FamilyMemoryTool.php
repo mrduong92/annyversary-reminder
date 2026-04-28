@@ -2,16 +2,18 @@
 
 namespace App\Ai\Tools;
 
-use App\Models\DocumentChunk;
 use App\Models\FamilyDocument;
+use App\Services\AI\RagService;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
 
 class FamilyMemoryTool implements Tool
 {
-    public function __construct(private readonly int $userId) {}
+    public function __construct(
+        private readonly int $userId,
+        private readonly ?int $familyGroupId = null,
+    ) {}
 
     public function description(): string
     {
@@ -20,41 +22,29 @@ class FamilyMemoryTool implements Tool
 
     public function handle(Request $request): string
     {
-        $query = $request->string('query');
+        $query = (string) $request->string('query');
 
-        if (! $query) return 'Vui lòng cung cấp câu hỏi cụ thể.';
+        if (! $query) {
+            return 'Vui lòng cung cấp câu hỏi cụ thể.';
+        }
 
-        // Lấy document IDs của user
-        $docIds = FamilyDocument::where('user_id', $this->userId)
+        if (! $this->familyGroupId) {
+            return 'Không xác định được nhóm gia đình.';
+        }
+
+        $hasDocuments = FamilyDocument::where('family_group_id', $this->familyGroupId)
             ->where('status', 'ready')
-            ->pluck('id');
+            ->exists();
 
-        if ($docIds->isEmpty()) {
-            return 'Gia đình chưa upload tài liệu nào. Bạn có thể thêm tài liệu trong mục "Tài liệu gia đình".';
+        if (! $hasDocuments) {
+            return 'Gia đình chưa upload tài liệu nào. Bạn có thể thêm tài liệu trong mục "Tài liệu gia đình" trên trang Chat AI.';
         }
 
-        // MySQL FULLTEXT search trên document_chunks (MVP — sẽ nâng lên vector search sau)
-        $chunks = DocumentChunk::whereIn('document_id', $docIds)
-            ->whereRaw('MATCH(content) AGAINST(? IN BOOLEAN MODE)', [$query])
-            ->select('content', DB::raw('MATCH(content) AGAINST(? IN BOOLEAN MODE) AS relevance'), 'document_id')
-            ->addBinding($query, 'select')
-            ->orderByDesc('relevance')
-            ->limit(5)
-            ->get();
+        $context = app(RagService::class)->search($query, $this->familyGroupId);
 
-        // Fallback: LIKE search nếu FULLTEXT không có kết quả
-        if ($chunks->isEmpty()) {
-            $chunks = DocumentChunk::whereIn('document_id', $docIds)
-                ->where('content', 'like', '%' . $query . '%')
-                ->limit(5)
-                ->get();
-        }
-
-        if ($chunks->isEmpty()) {
+        if (empty($context)) {
             return "Không tìm thấy thông tin liên quan đến \"{$query}\" trong tài liệu gia đình.";
         }
-
-        $context = $chunks->pluck('content')->implode("\n\n---\n\n");
 
         return "Tìm thấy các đoạn liên quan từ tài liệu gia đình:\n\n{$context}";
     }

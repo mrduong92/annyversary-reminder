@@ -8,6 +8,7 @@ use Illuminate\Contracts\Support\Responsable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Laravel\Ai\Exceptions\RateLimitedException;
@@ -22,19 +23,48 @@ class AgentController extends Controller
     }
 
     /**
-     * Tạo hoặc trả về conversation_id cho session hiện tại.
-     * Client gọi trước khi stream để lấy ID.
+     * Trả về lịch sử messages của một conversation.
+     * Client gọi khi init để khôi phục chat sau reload.
+     */
+    public function history(Request $request): JsonResponse
+    {
+        $conversationId = $request->input('conversation_id');
+
+        if (! $conversationId || ! Str::isUuid($conversationId)) {
+            return response()->json(['messages' => []]);
+        }
+
+        $records = DB::table('agent_conversation_messages')
+            ->where('conversation_id', $conversationId)
+            ->where('user_id', Auth::id())
+            ->orderBy('created_at')
+            ->get(['role', 'content', 'tool_calls', 'created_at']);
+
+        $messages = $records
+            ->filter(fn ($r) => in_array($r->role, ['user', 'assistant']))
+            ->map(fn ($r) => [
+                'role'    => $r->role,
+                'content' => $r->content,
+                'time'    => \Carbon\Carbon::parse($r->created_at)
+                                ->timezone('Asia/Ho_Chi_Minh')
+                                ->format('H:i'),
+            ])
+            ->values();
+
+        return response()->json(['messages' => $messages]);
+    }
+
+    /**
+     * Tạo hoặc xác nhận conversation_id.
      */
     public function conversation(Request $request): JsonResponse
     {
         $conversationId = $request->input('conversation_id');
 
-        // Validate UUID nếu có
         if ($conversationId && ! Str::isUuid($conversationId)) {
             $conversationId = null;
         }
 
-        // Tạo mới nếu chưa có
         if (! $conversationId) {
             $conversationId = (string) Str::uuid();
         }
@@ -51,16 +81,16 @@ class AgentController extends Controller
 
         $user = Auth::user();
 
-        // if (! $this->subscription->canSendAgentMessage($user)) {
-        //     return response()->json([
-        //         'error' => 'Bạn đã đạt giới hạn tin nhắn hôm nay. Nâng cấp để chat không giới hạn.',
-        //     ], 429);
-        // }
+        if (! $this->subscription->canSendAgentMessage($user)) {
+            return response()->json([
+                'error' => 'Bạn đã đạt giới hạn tin nhắn hôm nay. Nâng cấp để chat không giới hạn.',
+            ], 429);
+        }
 
-        // $this->subscription->incrementAgentMessageCount($user);
+        $this->subscription->incrementAgentMessageCount($user);
 
         try {
-            $agent          = (new FamilyAgent)->forUser($user);
+            $agent          = (new FamilyAgent)->forUser($user, familyGroupId: active_group()->id);
             $conversationId = $request->input('conversation_id');
             $message        = $request->input('message');
 
@@ -68,7 +98,6 @@ class AgentController extends Controller
                 $agent->continue($conversationId, as: $user);
             }
 
-            // Trả thẳng StreamableAgentResponse — SDK tự handle SSE
             return $agent->stream($message);
 
         } catch (RateLimitedException) {

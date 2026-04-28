@@ -9,12 +9,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class FamilyDocument extends Model
 {
     protected $fillable = [
-        'user_id', 'filename', 'disk', 'path', 'content_type', 'status',
+        'user_id', 'family_group_id', 'filename', 'disk', 'path', 'content_type', 'status',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function familyGroup(): BelongsTo
+    {
+        return $this->belongsTo(FamilyGroup::class);
     }
 
     public function chunks(): HasMany

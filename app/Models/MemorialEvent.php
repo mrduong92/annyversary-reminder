@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class MemorialEvent extends Model
 {
     protected $fillable = [
-        'user_id', 'name', 'relationship', 'lunar_day', 'lunar_month',
-        'date_type', 'solar_date_next', 'notes', 'is_active',
+        'user_id', 'family_group_id', 'family_member_id',
+        'lunar_day', 'lunar_month', 'date_type', 'solar_date_next', 'notes', 'is_active',
     ];
 
     protected function casts(): array
@@ -22,6 +22,21 @@ class MemorialEvent extends Model
             'lunar_day'       => 'integer',
             'lunar_month'     => 'integer',
         ];
+    }
+
+    public function getNameAttribute()
+    {
+        return $this->familyMember?->name;
+    }
+
+    public function getPronounAttribute()
+    {
+        return $this->familyMember?->pronoun;
+    }
+
+    public function getRelationshipAttribute()
+    {
+        return $this->familyMember?->relationship;
     }
 
     public function isLunar(): bool { return $this->date_type === 'lunar'; }
@@ -37,6 +52,11 @@ class MemorialEvent extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function familyMember(): BelongsTo
+    {
+        return $this->belongsTo(FamilyMember::class);
     }
 
     public function recipients(): BelongsToMany
@@ -57,6 +77,14 @@ class MemorialEvent extends Model
 
     public function scopeActive($query)
     {
-        return $query->where('is_active', true);
+        return $query->where('is_active', true)->with('familyMember');
+    }
+
+    /** Display name với pronoun nếu có — dùng khắp nơi */
+    public function displayName(): string
+    {
+        $m = $this->familyMember;
+        if (! $m) return '';
+        return $m->pronoun ? "{$m->pronoun} {$m->name}" : $m->name;
     }
 }

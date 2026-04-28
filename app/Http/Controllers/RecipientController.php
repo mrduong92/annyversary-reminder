@@ -16,7 +16,7 @@ class RecipientController extends Controller
 
     public function index(): View
     {
-        $recipients = Auth::user()
+        $recipients = active_group()
             ->recipients()
             ->withCount('memorialEvents')
             ->orderBy('name')
@@ -35,7 +35,10 @@ class RecipientController extends Controller
     {
         $this->authorizeLimit();
 
-        Auth::user()->recipients()->create($request->validated());
+        active_group()->recipients()->create([
+            ...$request->validated(),
+            'user_id' => Auth::id(),
+        ]);
 
         return redirect()->route('recipients.index')
             ->with('success', 'Đã thêm người nhận ' . $request->name . '.');
@@ -46,7 +49,7 @@ class RecipientController extends Controller
         $this->authorizeOwner($recipient);
 
         $linkedEventIds = $recipient->memorialEvents()->pluck('memorial_events.id');
-        $allEvents      = Auth::user()->memorialEvents()->orderBy('name')->get();
+        $allEvents      = active_group()->memorialEvents()->orderBy('name')->get();
 
         return view('recipients.edit', compact('recipient', 'linkedEventIds', 'allEvents'));
     }
@@ -62,7 +65,6 @@ class RecipientController extends Controller
     public function destroy(Recipient $recipient): RedirectResponse
     {
         $this->authorizeOwner($recipient);
-
         $name = $recipient->name;
         $recipient->delete();
 
@@ -79,7 +81,7 @@ class RecipientController extends Controller
     {
         if (! $this->subscription->canAddRecipient(Auth::user())) {
             abort(redirect()->route('recipients.index')
-                ->with('error', 'Bạn đã đạt giới hạn người nhận của gói hiện tại. Nâng cấp để thêm không giới hạn.'));
+                ->with('error', 'Bạn đã đạt giới hạn người nhận. Nâng cấp để thêm không giới hạn.'));
         }
     }
 }

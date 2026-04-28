@@ -14,6 +14,7 @@ class EventTool implements Tool
         private readonly int $userId,
         private readonly LunarCalendarService $lunar,
         private readonly bool $readOnly = false,
+        private readonly ?int $familyGroupId = null,
     ) {}
 
     public function description(): string
@@ -25,7 +26,8 @@ class EventTool implements Tool
 
     public function handle(Request $request): string
     {
-        $action = $request->string('action');
+        // SDK Request::string() trả Stringable, phải cast về string trước khi dùng match/comparison
+        $action = (string) $request->string('action');
 
         if ($this->readOnly && $action !== 'list') {
             return 'Bạn chỉ có quyền xem lịch giỗ, không thể thay đổi dữ liệu qua link chia sẻ này.';
@@ -43,8 +45,8 @@ class EventTool implements Tool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'action' => $schema->string()->enum(['list', 'add', 'update', 'delete'])
-                ->description('list=xem danh sách, add=thêm mới, update=sửa, delete=xóa')->required(),
+            'action'       => $schema->string()->enum(['list', 'add', 'update', 'delete'])
+                                ->description('list=xem, add=thêm, update=sửa, delete=xóa')->required(),
             'name'         => $schema->string()->description('Tên người (VD: "Ông nội Nguyễn Văn A")'),
             'relationship' => $schema->string()->description('Quan hệ với người dùng'),
             'lunar_day'    => $schema->integer()->description('Ngày (1-30)'),
@@ -55,9 +57,23 @@ class EventTool implements Tool
         ];
     }
 
+    // ── Helpers ───────────────────────────────────────────────
+
+    /** Cast Stringable → string rồi mới fallback, tránh Stringable luôn truthy */
+    private function str(Request $req, string $key, string $fallback = ''): string
+    {
+        return (string) $req->string($key) ?: $fallback;
+    }
+
+    // ── Actions ───────────────────────────────────────────────
+
     private function list(Request $request): string
     {
-        $events = MemorialEvent::where('user_id', $this->userId)->active()->orderBy('solar_date_next')->get();
+        $q = MemorialEvent::where('user_id', $this->userId)->active();
+        if ($this->familyGroupId) {
+            $q->where('family_group_id', $this->familyGroupId);
+        }
+        $events = $q->orderBy('solar_date_next')->get();
 
         if ($events->isEmpty()) return 'Chưa có ngày giỗ nào.';
 
@@ -66,23 +82,30 @@ class EventTool implements Tool
 
     private function add(Request $request): string
     {
-        $name       = $request->string('name');
+        $name       = $this->str($request, 'name');
         $lunarDay   = $request->integer('lunar_day');
         $lunarMonth = $request->integer('lunar_month');
-        $dateType   = $request->string('date_type') ?: 'lunar';
+        $dateType   = $this->str($request, 'date_type', 'lunar');
 
-        if (! $name || ! $lunarDay || ! $lunarMonth) return 'Thiếu thông tin: cần tên, ngày và tháng.';
+        if (! $name || ! $lunarDay || ! $lunarMonth) {
+            return 'Thiếu thông tin: cần tên, ngày và tháng.';
+        }
 
         $solarNext = $dateType === 'solar'
             ? $this->lunar->nextSolarOccurrence($lunarDay, $lunarMonth)
             : $this->lunar->nextOccurrence($lunarDay, $lunarMonth);
 
         $event = MemorialEvent::create([
-            'user_id' => $this->userId, 'name' => $name,
-            'relationship' => $request->string('relationship'),
-            'lunar_day' => $lunarDay, 'lunar_month' => $lunarMonth,
-            'date_type' => $dateType, 'solar_date_next' => $solarNext,
-            'notes' => $request->string('notes'), 'is_active' => true,
+            'user_id'         => $this->userId,
+            'family_group_id' => $this->familyGroupId,
+            'name'            => $name,
+            'relationship'    => $this->str($request, 'relationship'),
+            'lunar_day'       => $lunarDay,
+            'lunar_month'     => $lunarMonth,
+            'date_type'       => $dateType,
+            'solar_date_next' => $solarNext,
+            'notes'           => $this->str($request, 'notes'),
+            'is_active'       => true,
         ]);
 
         return "✓ Đã thêm \"{$event->name}\" ({$event->dateLabel()}), gần nhất: {$solarNext->format('d/m/Y')}.";
@@ -91,23 +114,24 @@ class EventTool implements Tool
     private function update(Request $request): string
     {
         $event = MemorialEvent::where('user_id', $this->userId)->find($request->integer('event_id'));
-
         if (! $event) return 'Không tìm thấy ngày giỗ với ID đã cung cấp.';
 
         $lunarDay   = $request->integer('lunar_day') ?: $event->lunar_day;
         $lunarMonth = $request->integer('lunar_month') ?: $event->lunar_month;
-        $dateType   = $request->string('date_type') ?: $event->date_type;
+        $dateType   = $this->str($request, 'date_type') ?: $event->date_type;
 
         $solarNext = $dateType === 'solar'
             ? $this->lunar->nextSolarOccurrence($lunarDay, $lunarMonth)
             : $this->lunar->nextOccurrence($lunarDay, $lunarMonth);
 
         $event->update([
-            'name' => $request->string('name') ?: $event->name,
-            'relationship' => $request->string('relationship') ?: $event->relationship,
-            'lunar_day' => $lunarDay, 'lunar_month' => $lunarMonth,
-            'date_type' => $dateType, 'solar_date_next' => $solarNext,
-            'notes' => $request->string('notes') ?: $event->notes,
+            'name'            => $this->str($request, 'name') ?: $event->name,
+            'relationship'    => $this->str($request, 'relationship') ?: $event->relationship,
+            'lunar_day'       => $lunarDay,
+            'lunar_month'     => $lunarMonth,
+            'date_type'       => $dateType,
+            'solar_date_next' => $solarNext,
+            'notes'           => $this->str($request, 'notes') ?: $event->notes,
         ]);
 
         return "✓ Đã cập nhật \"{$event->name}\".";
@@ -116,7 +140,6 @@ class EventTool implements Tool
     private function delete(Request $request): string
     {
         $event = MemorialEvent::where('user_id', $this->userId)->find($request->integer('event_id'));
-
         if (! $event) return 'Không tìm thấy ngày giỗ với ID đã cung cấp.';
 
         $name = $event->name;

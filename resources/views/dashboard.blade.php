@@ -61,7 +61,7 @@
                         <div>
                             <a href="{{ route('events.show', $event) }}"
                                 class="text-sm font-medium text-gray-800 hover:text-primary-600 hover:underline">
-                                {{ $event->name }}
+                                {{ $event->displayName() }}
                             </a>
                             <p class="text-xs text-gray-400 mt-0.5">{{ $event->dateLabel() }}</p>
                         </div>

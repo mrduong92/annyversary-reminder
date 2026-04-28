@@ -17,17 +17,22 @@ class DashboardController extends Controller
     public function index(): View
     {
         $user   = Auth::user()->fresh();
+        $group  = active_group();
         $plan   = $user->subscription_plan ?? 'free';
-        $limits = ['free' => ['events'=>3,'recipients'=>2,'zns'=>5], 'basic' => ['events'=>10,'recipients'=>10,'zns'=>30], 'unlimited' => ['events'=>PHP_INT_MAX,'recipients'=>PHP_INT_MAX,'zns'=>PHP_INT_MAX]];
+        $limits = [
+            'free'      => ['events'=>3,'recipients'=>2,'zns'=>5],
+            'basic'     => ['events'=>10,'recipients'=>10,'zns'=>30],
+            'unlimited' => ['events'=>PHP_INT_MAX,'recipients'=>PHP_INT_MAX,'zns'=>PHP_INT_MAX],
+        ];
 
-        $eventCount     = $user->memorialEvents()->count();
-        $recipientCount = $user->recipients()->count();
-        $prayerCount    = $user->prayers()->count();
+        $eventCount     = $group->memorialEvents()->count();
+        $recipientCount = $group->recipients()->count();
+        $prayerCount    = $group->prayers()->count();
         $znsUsed        = $user->zns_count_this_month;
         $znsLimit       = $limits[$plan]['zns'];
 
-        // Các ngày giỗ sắp tới (30 ngày tới), sort theo solar_date_next
-        $upcoming = $user->memorialEvents()
+        $upcoming = $group->memorialEvents()
+            ->with('familyMember')
             ->active()
             ->whereNotNull('solar_date_next')
             ->orderBy('solar_date_next')
@@ -40,7 +45,7 @@ class DashboardController extends Controller
             ->filter(fn ($e) => $e->days_until >= 0 && $e->days_until <= 365);
 
         return view('dashboard', compact(
-            'user', 'plan', 'limits',
+            'user', 'plan', 'limits', 'group',
             'eventCount', 'recipientCount', 'prayerCount',
             'znsUsed', 'znsLimit', 'upcoming',
         ));

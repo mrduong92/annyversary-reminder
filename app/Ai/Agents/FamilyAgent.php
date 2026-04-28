@@ -5,8 +5,10 @@ namespace App\Ai\Agents;
 use App\Ai\Tools\CalendarQueryTool;
 use App\Ai\Tools\EventTool;
 use App\Ai\Tools\FamilyMemoryTool;
+use App\Ai\Tools\GenealogyTool;
 use App\Ai\Tools\PrayerTool;
 use App\Models\User;
+use App\Services\FamilyTreeService;
 use App\Services\LunarCalendarService;
 use Carbon\Carbon;
 use Laravel\Ai\Attributes\Model;
@@ -26,17 +28,15 @@ class FamilyAgent implements Agent, Conversational, HasTools
 {
     use Promptable, RemembersConversations;
 
-    private bool $readOnly = false;
+    private bool $readOnly      = false;
+    private ?int $familyGroupId = null;
 
-    /**
-     * Override trait's forUser() để thêm readOnly flag và set $this->user
-     * Vẫn gọi đúng logic của trait (set conversationUser).
-     */
-    public function forUser($user, bool $readOnly = false): static
+    public function forUser($user, bool $readOnly = false, ?int $familyGroupId = null): static
     {
         $this->conversationUser = $user;
         $this->conversationId   = null;
         $this->readOnly         = $readOnly;
+        $this->familyGroupId    = $familyGroupId;
 
         return $this;
     }
@@ -47,7 +47,7 @@ class FamilyAgent implements Agent, Conversational, HasTools
         $today     = Carbon::now('Asia/Ho_Chi_Minh')->isoFormat('dddd, D/M/YYYY');
         $userName  = $user?->name ?? 'bạn';
         $readOnlyNote = $this->readOnly
-            ? "\n\nLưu ý: Đây là chế độ xem qua link chia sẻ. Bạn CHỈ được xem và hỏi, KHÔNG thể thêm, sửa hoặc xóa dữ liệu."
+            ? "\n\nLưu ý quan trọng khi chia sẻ link:\n- Đây là chế độ xem — bạn CHỈ được xem và hỏi, KHÔNG thể thêm, sửa hoặc xóa dữ liệu.\n- Người xem qua link này có THỂ CÓ VAI VẾ KHÁC với người thiết lập hệ thống. Ví dụ: cùng một người mất, người setup gọi là 'ông nội', nhưng người xem link có thể là con của người setup, gọi là 'ông cố'.\n- Vì vậy: LUÔN dùng TÊN ĐẦY ĐỦ của người mất thay vì xưng hô theo vai vế. Nếu cần đề cập quan hệ, hãy nói 'theo ghi chép của gia đình là...' thay vì áp đặt.\n- Nếu người dùng tự giới thiệu vai vế của họ, hãy dùng vai vế đó để trả lời cho phù hợp."
             : '';
 
         return <<<PROMPT
@@ -124,14 +124,16 @@ PROMPT;
 
     public function tools(): iterable
     {
-        $lunar  = app(LunarCalendarService::class);
-        $userId = $this->conversationUser?->id ?? 0;
+        $lunar   = app(LunarCalendarService::class);
+        $userId  = $this->conversationUser?->id ?? 0;
+        $groupId = $this->familyGroupId;
 
         return [
-            new CalendarQueryTool($userId, $lunar),
-            new EventTool($userId, $lunar, $this->readOnly),
+            new CalendarQueryTool($userId, $lunar, $groupId, $this->readOnly),
+            new EventTool($userId, $lunar, $this->readOnly, $groupId),
             new PrayerTool($userId),
-            new FamilyMemoryTool($userId),
+            new FamilyMemoryTool($userId, $groupId),
+            new GenealogyTool($groupId ?? 0, app(FamilyTreeService::class)),
         ];
     }
 }

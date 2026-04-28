@@ -22,8 +22,9 @@ class EventController extends Controller
 
     public function index(): View
     {
-        $events = Auth::user()
+        $events = active_group()
             ->memorialEvents()
+            ->with('familyMember')
             ->orderBy('solar_date_next')
             ->get()
             ->map(fn ($e) => $this->withDaysUntil($e));
@@ -34,30 +35,47 @@ class EventController extends Controller
     public function create(): View
     {
         $this->authorizeLimit();
-        $recipients = Auth::user()->recipients()->active()->orderBy('name')->get();
+        $recipients = active_group()->recipients()->active()->orderBy('name')->get();
+
+        // Chỉ hiện members chưa có ngày giỗ (gợi ý tạo mới)
+        // và tất cả members để user vẫn có thể chọn bất kỳ ai
+        $existingMemberIds = active_group()->memorialEvents()->pluck('family_member_id');
+        $availableMembers  = active_group()->familyMembers()
+            ->whereNotIn('id', $existingMemberIds)
+            ->orderBy('death_year', 'desc')
+            ->orderBy('name')
+            ->get();
+        $allMembers = active_group()->familyMembers()->orderBy('name')->get();
+
         $attachedRecipientIds = [];
-        return view('events.create', compact('recipients', 'attachedRecipientIds'));
+        return view('events.create', compact('recipients', 'availableMembers', 'allMembers', 'attachedRecipientIds'));
     }
 
     public function store(StoreMemorialEventRequest $request): RedirectResponse
     {
         $this->authorizeLimit();
 
-        $validated = $request->validated();
+        $validated    = $request->validated();
         $recipientIds = $validated['recipient_ids'] ?? [];
         unset($validated['recipient_ids']);
 
-        $event = Auth::user()->memorialEvents()->create([
+        $event = active_group()->memorialEvents()->create([
             ...$validated,
+            'user_id'         => Auth::id(),
             'solar_date_next' => $this->resolveSolarNext($request->date_type, $request->lunar_day, $request->lunar_month),
         ]);
 
-        if (!empty($recipientIds)) {
+        if (! empty($recipientIds)) {
             $event->recipients()->attach($recipientIds);
         }
 
+        // Sync ngược: cập nhật family_member.memorial_event_id
+        \App\Models\FamilyMember::where('id', $validated['family_member_id'])
+            ->whereNull('memorial_event_id')
+            ->update(['memorial_event_id' => $event->id]);
+
         return redirect()->route('events.index')
-            ->with('success', 'Đã thêm ngày giỗ ' . $request->name . '.');
+            ->with('success', 'Đã thêm ngày giỗ cho ' . $event->displayName() . '.');
     }
 
     public function show(MemorialEvent $event): View
@@ -65,9 +83,9 @@ class EventController extends Controller
         $this->authorizeOwner($event);
         $event = $this->withDaysUntil($event);
 
-        $attached   = $event->recipients()->orderBy('name')->get();
+        $attached    = $event->recipients()->orderBy('name')->get();
         $attachedIds = $attached->pluck('id');
-        $available  = Auth::user()->recipients()
+        $available   = active_group()->recipients()
             ->whereNotIn('id', $attachedIds)
             ->orderBy('name')
             ->get();
@@ -81,7 +99,6 @@ class EventController extends Controller
         abort_if($recipient->user_id !== Auth::id(), 403);
 
         $days = $request->input('notify_days_before');
-
         $event->recipients()->syncWithoutDetaching([
             $recipient->id => ['notify_days_before' => $days ? json_encode($days) : null],
         ]);
@@ -100,15 +117,16 @@ class EventController extends Controller
     public function edit(MemorialEvent $event): View
     {
         $this->authorizeOwner($event);
-        $recipients = Auth::user()->recipients()->active()->orderBy('name')->get();
+        $recipients           = active_group()->recipients()->active()->orderBy('name')->get();
+        $allMembers           = active_group()->familyMembers()->orderBy('name')->get();
         $attachedRecipientIds = $event->recipients()->pluck('recipients.id')->toArray();
-        return view('events.edit', compact('event', 'recipients', 'attachedRecipientIds'));
+        return view('events.edit', compact('event', 'recipients', 'allMembers', 'attachedRecipientIds'));
     }
 
     public function update(UpdateMemorialEventRequest $request, MemorialEvent $event): RedirectResponse
     {
         $validated = $request->validated();
-        $newIds = $validated['recipient_ids'] ?? [];
+        $newIds    = $validated['recipient_ids'] ?? [];
         unset($validated['recipient_ids']);
 
         $event->update([
@@ -117,15 +135,11 @@ class EventController extends Controller
         ]);
 
         $currentIds = $event->recipients()->pluck('recipients.id')->toArray();
-        $toDetach = array_diff($currentIds, $newIds);
-        $toAttach = array_diff($newIds, $currentIds);
+        $toDetach   = array_diff($currentIds, $newIds);
+        $toAttach   = array_diff($newIds, $currentIds);
 
-        if (!empty($toDetach)) {
-            $event->recipients()->detach($toDetach);
-        }
-        if (!empty($toAttach)) {
-            $event->recipients()->attach($toAttach);
-        }
+        if (! empty($toDetach)) $event->recipients()->detach($toDetach);
+        if (! empty($toAttach)) $event->recipients()->attach($toAttach);
 
         return redirect()->route('events.index')
             ->with('success', 'Đã cập nhật ngày giỗ ' . $event->name . '.');
@@ -134,7 +148,6 @@ class EventController extends Controller
     public function destroy(MemorialEvent $event): RedirectResponse
     {
         $this->authorizeOwner($event);
-
         $name = $event->name;
         $event->delete();
 
@@ -158,7 +171,7 @@ class EventController extends Controller
     {
         if (! $this->subscription->canAddEvent(Auth::user())) {
             abort(redirect()->route('events.index')
-                ->with('error', 'Bạn đã đạt giới hạn ngày giỗ của gói hiện tại. Nâng cấp để thêm không giới hạn.'));
+                ->with('error', 'Bạn đã đạt giới hạn ngày giỗ. Nâng cấp để thêm không giới hạn.'));
         }
     }
 
@@ -167,7 +180,6 @@ class EventController extends Controller
         $event->days_until = $event->solar_date_next
             ? $this->lunar->daysUntil($event->solar_date_next)
             : null;
-
         return $event;
     }
 }

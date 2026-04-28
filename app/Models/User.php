@@ -46,6 +46,17 @@ class User extends Authenticatable
         ];
     }
 
+    public function familyGroups(): HasMany
+    {
+        return $this->hasMany(FamilyGroup::class);
+    }
+
+    public function defaultFamilyGroup(): ?FamilyGroup
+    {
+        return $this->familyGroups()->where('is_default', true)->first()
+            ?? $this->familyGroups()->first();
+    }
+
     public function memorialEvents(): HasMany
     {
         return $this->hasMany(MemorialEvent::class);

@@ -16,8 +16,7 @@ class UpdateMemorialEventRequest extends FormRequest
         $isSolar = $this->input('date_type') === 'solar';
 
         return [
-            'name'         => ['required', 'string', 'max:100'],
-            'relationship' => ['nullable', 'string', 'max:50'],
+            'family_member_id' => ['required', 'integer', 'exists:family_members,id'],
             'date_type'    => ['required', 'in:lunar,solar'],
             'lunar_day'    => ['required', 'integer', 'min:1', 'max:' . ($isSolar ? 31 : 30)],
             'lunar_month'  => ['required', 'integer', 'min:1', 'max:12'],
@@ -31,7 +30,7 @@ class UpdateMemorialEventRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required'        => 'Vui lòng nhập tên người mất.',
+            'family_member_id.required' => 'Vui lòng chọn thành viên.',
             'lunar_day.required'   => 'Vui lòng nhập ngày âm lịch.',
             'lunar_day.min'        => 'Ngày âm lịch phải từ 1 đến 30.',
             'lunar_day.max'        => 'Ngày âm lịch phải từ 1 đến 30.',

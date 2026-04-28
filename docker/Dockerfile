@@ -14,7 +14,8 @@ RUN apk add --no-cache \
     unzip \
     oniguruma-dev \
     icu-dev \
-    linux-headers
+    linux-headers \
+    postgresql-dev
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd \
@@ -23,7 +24,8 @@ RUN docker-php-ext-configure gd \
         --with-webp \
     && docker-php-ext-install \
         pdo \
-        pdo_mysql \
+        pdo_pgsql \
+        pgsql \
         mbstring \
         exif \
         pcntl \

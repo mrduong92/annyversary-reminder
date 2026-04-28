@@ -28,10 +28,10 @@ class ZnsService
                     'phone' => $recipient->phone,
                     'template_id' => config('services.zalo.zns_template_id'),
                     'template_data' => [
-                        'ten_nguoi_mat' => $event->name,
-                        'ngay_gio' => "{$event->lunar_day}/{$event->lunar_month} âm lịch",
+                        'ten_nguoi_mat'  => $event->displayName(),
+                        'ngay_gio'       => "{$event->lunar_day}/{$event->lunar_month} âm lịch",
                         'ngay_duong_lich' => $event->solar_date_next?->format('d/m/Y'),
-                        'ten_nguoi_dung' => $event->user->name,
+                        'ten_nguoi_dung'  => $event->user->name,
                     ],
                     'tracking_id' => "log_{$log->id}",
                 ]);

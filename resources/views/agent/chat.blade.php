@@ -5,22 +5,67 @@
     x-init="init()">
 
     {{-- Header --}}
-    <div class="flex items-center gap-3 px-4 sm:px-6 py-4 bg-white border-b border-gray-200 shrink-0">
-        <div class="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center">
-            <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 001.357 2.059l.231.096c.808.34 1.412 1.04 1.612 1.886.218.96-.007 1.965-.623 2.72L15 21m-5.25-17.896c.251.023.501.05.75.082M4.5 6.375a4.125 4.125 0 118.25 0 4.125 4.125 0 01-8.25 0z"/>
-            </svg>
+    <div class="flex items-center gap-3 px-4 sm:px-6 py-3 bg-white border-b border-gray-200 shrink-0">
+        <div class="flex-1 min-w-0">
+            <h1 class="font-semibold text-gray-900 text-sm">{{ $activeFamilyGroup->name }}</h1>
+            <p class="text-xs text-gray-400">Trợ lý AI · Hỏi về lịch giỗ, soạn văn khấn</p>
         </div>
-        <div>
-            <h1 class="font-semibold text-gray-900 text-sm">Trợ lý AI Gia Đình</h1>
-            <p class="text-xs text-gray-400">Hỏi về lịch giỗ, soạn văn khấn, tìm kiếm tài liệu</p>
-        </div>
-        <div class="ml-auto">
-            <button @click="clearConversation()"
-                class="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100 transition-colors">
-                Cuộc trò chuyện mới
+
+        {{-- Share button --}}
+        <div x-data="sharePanel()" class="relative">
+            <button @click="toggle()"
+                class="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                </svg>
+                Chia sẻ
             </button>
+
+            {{-- Share panel --}}
+            <div x-show="open" x-cloak @click.outside="open = false"
+                class="absolute right-0 top-10 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-4 z-50">
+                <p class="text-sm font-semibold text-gray-800 mb-1">Chia sẻ chatbot gia đình</p>
+                <p class="text-xs text-gray-400 mb-3">Người thân có thể chat với AI biết lịch giỗ nhà bạn — chỉ đọc, không thể sửa.</p>
+
+                <template x-if="!shareUrl && !enabled">
+                    <button @click="enableShare()" :disabled="loading"
+                        class="w-full py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors disabled:opacity-60">
+                        <span x-show="!loading">Tạo link chia sẻ</span>
+                        <span x-show="loading">Đang tạo...</span>
+                    </button>
+                </template>
+
+                <template x-if="shareUrl || enabled">
+                    <div class="space-y-2">
+                        <div class="flex gap-2">
+                            <input type="text" :value="shareUrl" readonly
+                                class="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-2 font-mono min-w-0">
+                            <button @click="copyUrl()" x-text="copied ? '✓' : 'Copy'"
+                                :class="copied ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                                class="shrink-0 text-xs font-medium px-3 py-2 rounded-lg transition-colors">
+                            </button>
+                        </div>
+                        <button @click="disableShare()"
+                            class="w-full py-1.5 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            Tắt link chia sẻ
+                        </button>
+                    </div>
+                </template>
+            </div>
         </div>
+
+        <a href="{{ route('documents.index') }}"
+            class="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            title="Quản lý tài liệu gia đình">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+        </a>
+
+        <button @click="clearConversation()"
+            class="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+            Mới
+        </button>
     </div>
 
     {{-- Messages --}}
@@ -61,6 +106,28 @@
                 ]">
                     <div x-html="formatMessage(msg.content)" class="prose prose-sm max-w-none"
                         :class="msg.role === 'user' ? 'prose-invert' : ''"></div>
+
+                    {{-- Nút Lưu văn khấn — chỉ hiện nếu message là prayer --}}
+                    <template x-if="msg.isPrayer && msg.role === 'assistant'">
+                        <div class="mt-2 pt-2 border-t border-gray-100">
+                            <template x-if="!msg.saved">
+                                <button @click="savePrayer(msg, i)"
+                                    :disabled="msg.saving"
+                                    class="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                                    <span x-text="msg.saving ? 'Đang lưu...' : 'Lưu văn khấn'"></span>
+                                </button>
+                            </template>
+                            <template x-if="msg.saved">
+                                <a :href="msg.savedUrl" target="_blank"
+                                    class="inline-flex items-center gap-1.5 text-xs font-medium text-green-600 bg-green-50 px-3 py-1.5 rounded-lg">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    Đã lưu — Xem văn khấn
+                                </a>
+                            </template>
+                        </div>
+                    </template>
+
                     <p class="text-xs mt-1 opacity-50" x-text="msg.time"></p>
                 </div>
             </div>
@@ -123,6 +190,7 @@ function chatAgent() {
         streaming: false,
         streamingText: '',
         conversationId: null,
+        prayerDetected: false,  // flag khi PrayerTool được gọi trong turn hiện tại
         hints: [
             'Giỗ ông nội năm nay vào ngày mấy?',
             'Còn bao nhiêu ngày đến ngày giỗ gần nhất?',
@@ -130,8 +198,25 @@ function chatAgent() {
             'Xem tất cả ngày giỗ trong gia đình',
         ],
 
-        init() {
+        async init() {
             this.conversationId = localStorage.getItem('agent_conversation_id') || null;
+            if (this.conversationId) {
+                await this.loadHistory();
+            }
+        },
+
+        async loadHistory() {
+            try {
+                const res = await fetch(
+                    '{{ route('agent.history') }}?conversation_id=' + encodeURIComponent(this.conversationId),
+                    { headers: { 'Accept': 'application/json' } }
+                );
+                const data = await res.json();
+                if (data.messages?.length) {
+                    this.messages = data.messages;
+                    this.$nextTick(() => this.scrollToBottom());
+                }
+            } catch { /* ignore — fresh start */ }
         },
 
         async sendMessage(text) {
@@ -154,6 +239,7 @@ function chatAgent() {
             this.scrollToBottom();
             this.streaming = true;
             this.streamingText = '';
+            this.prayerDetected = false;
 
             try {
                 const csrf = document.querySelector('meta[name="csrf-token"]').content;
@@ -198,8 +284,7 @@ function chatAgent() {
 
                     const chunk = decoder.decode(value, { stream: true });
 
-                    // Parse SSE events — Laravel AI SDK format:
-                    // data: {"type":"text_delta","delta":"..."}\n\n
+                    // Parse SSE events — Laravel AI SDK format
                     const lines = chunk.split('\n');
                     for (const line of lines) {
                         if (! line.startsWith('data: ')) continue;
@@ -209,6 +294,8 @@ function chatAgent() {
                             const parsed = JSON.parse(data);
                             if (parsed?.type === 'text_delta' && parsed?.delta) {
                                 this.streamingText += parsed.delta;
+                            } else if (parsed?.type === 'tool_call' && parsed?.name === 'PrayerTool') {
+                                this.prayerDetected = true;
                             }
                         } catch { /* ignore non-JSON lines */ }
                     }
@@ -221,7 +308,12 @@ function chatAgent() {
                         role: 'assistant',
                         content: this.streamingText,
                         time: this.now(),
+                        isPrayer: this.prayerDetected,
+                        saved: false,
+                        saving: false,
+                        savedUrl: null,
                     });
+                    this.prayerDetected = false;
                 }
 
             } catch (error) {
@@ -254,6 +346,29 @@ function chatAgent() {
                 .replace(/\n/g, '<br>');
         },
 
+        async savePrayer(msg, index) {
+            msg.saving = true;
+            try {
+                const csrf = document.querySelector('meta[name="csrf-token"]').content;
+                // Tạo title từ dòng đầu của văn khấn
+                const title = msg.content.split('\n').filter(l => l.trim())[2]?.trim()
+                    || 'Văn khấn ' + new Date().toLocaleDateString('vi-VN');
+
+                const res = await fetch('{{ route('prayers.from-chat') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify({ title, content: msg.content, ai_generated: true }),
+                });
+                const data = await res.json();
+                msg.saved = true;
+                msg.savedUrl = data.url;
+            } catch {
+                alert('Không thể lưu. Vui lòng thử lại.');
+            } finally {
+                msg.saving = false;
+            }
+        },
+
         scrollToBottom() {
             this.$nextTick(() => {
                 const el = this.$refs.messages;
@@ -268,6 +383,47 @@ function chatAgent() {
 
         now() {
             return new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        },
+    }
+}
+
+function sharePanel() {
+    return {
+        open: false,
+        loading: false,
+        enabled: {{ $activeFamilyGroup->activeShare() ? 'true' : 'false' }},
+        shareUrl: '{{ $activeFamilyGroup->activeShare() ? route('share.public', $activeFamilyGroup->activeShare()->share_token) : '' }}',
+        copied: false,
+
+        toggle() { this.open = !this.open; },
+
+        async enableShare() {
+            this.loading = true;
+            try {
+                const res = await fetch('{{ route('share.enable') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+                });
+                const data = await res.json();
+                this.shareUrl = data.url;
+                this.enabled  = true;
+            } finally { this.loading = false; }
+        },
+
+        async disableShare() {
+            if (! confirm('Tắt link chia sẻ? Người đang dùng link sẽ không vào được nữa.')) return;
+            await fetch('{{ route('share.disable') }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+            });
+            this.enabled  = false;
+            this.shareUrl = '';
+        },
+
+        copyUrl() {
+            navigator.clipboard.writeText(this.shareUrl);
+            this.copied = true;
+            setTimeout(() => this.copied = false, 2000);
         },
     }
 }
