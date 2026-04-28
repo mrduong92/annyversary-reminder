@@ -27,6 +27,10 @@ class ImportController extends Controller
      */
     public function preview(Request $request): JsonResponse
     {
+        if (\Illuminate\Support\Facades\Gate::denies('import-image')) {
+            return response()->json(['error' => 'Tính năng nhập từ ảnh chỉ dành cho gói Premium.'], 403);
+        }
+
         $request->validate([
             'image' => ['required', 'image', 'max:10240'], // max 10MB
         ]);

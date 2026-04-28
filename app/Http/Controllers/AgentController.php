@@ -9,12 +9,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Laravel\Ai\Exceptions\RateLimitedException;
 
 class AgentController extends Controller
 {
+    // SubscriptionService giữ lại để increment counter sau khi check Gate
     public function __construct(private readonly SubscriptionService $subscription) {}
 
     public function index(): View
@@ -81,7 +83,7 @@ class AgentController extends Controller
 
         $user = Auth::user();
 
-        if (! $this->subscription->canSendAgentMessage($user)) {
+        if (Gate::denies('send-agent-message')) {
             return response()->json([
                 'error' => 'Bạn đã đạt giới hạn tin nhắn hôm nay. Nâng cấp để chat không giới hạn.',
             ], 429);

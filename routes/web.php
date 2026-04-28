@@ -11,11 +11,13 @@ use App\Http\Controllers\PrayerController;
 use App\Http\Controllers\RecipientController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShareController;
+use App\Http\Controllers\UpgradeController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () { return view('welcome'); });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
+Route::get('/upgrade', [UpgradeController::class, 'index'])->middleware('auth')->name('upgrade');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');

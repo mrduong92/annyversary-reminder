@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Ai\Agents\FamilyAgent;
 use App\Models\FamilyShare;
 use Illuminate\Contracts\Support\Responsable;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,13 @@ class ShareController extends Controller
      */
     public function enable(Request $request): JsonResponse
     {
+        if (Gate::denies('share-chat')) {
+            return response()->json([
+                'error'   => 'Tính năng chia sẻ chatbot chỉ dành cho gói Premium.',
+                'upgrade' => true,
+            ], 403);
+        }
+
         $group = active_group();
         $share = $group->getOrCreateShare();
 

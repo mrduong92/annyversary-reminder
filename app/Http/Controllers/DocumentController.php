@@ -29,6 +29,8 @@ class DocumentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('upload-document');
+
         $request->validate([
             'document' => [
                 'required',

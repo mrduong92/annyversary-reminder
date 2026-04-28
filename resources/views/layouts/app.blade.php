@@ -264,12 +264,12 @@
                     <p class="text-xs text-gray-500">{{ Auth::user()->phone }}</p>
                 </div>
                 @php $plan = Auth::user()->fresh()->subscription_plan ?? 'free'; @endphp
-                <span @class([
-                    'text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0',
+                <a href="{{ route('upgrade') }}" @class([
+                    'text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 hover:opacity-80 transition-opacity',
                     'bg-gray-100 text-gray-600' => $plan === 'free',
-                    'bg-blue-100 text-blue-700' => $plan === 'basic',
-                    'bg-amber-100 text-amber-700' => $plan === 'unlimited',
-                ])>{{ strtoupper($plan) }}</span>
+                    'bg-primary-100 text-primary-700' => $plan === 'mini',
+                    'bg-amber-100 text-amber-700' => $plan === 'premium',
+                ])>{{ strtoupper($plan) }}</a>
             </div>
             <form method="POST" action="{{ route('logout') }}" class="mt-1">
                 @csrf

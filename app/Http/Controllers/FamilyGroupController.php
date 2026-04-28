@@ -6,6 +6,7 @@ use App\Models\FamilyGroup;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class FamilyGroupController extends Controller
 {
@@ -78,6 +79,10 @@ class FamilyGroupController extends Controller
     /** Toggle nhắc Rằm hoặc Mùng 1 cho group đang active */
     public function toggleReminder(Request $request): \Illuminate\Http\RedirectResponse
     {
+        if (Gate::denies('use-ram-mung-mot')) {
+            return back()->with('error', 'Tính năng nhắc Rằm/Mùng 1 chỉ dành cho gói Premium.');
+        }
+
         $request->validate(['field' => ['required', 'in:remind_ram,remind_mung_mot']]);
 
         $group = active_group();

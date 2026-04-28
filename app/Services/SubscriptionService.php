@@ -7,84 +7,136 @@ use Carbon\Carbon;
 
 class SubscriptionService
 {
+    /**
+     * Giới hạn theo plan.
+     * ZNS tính theo NĂM (không phải tháng).
+     * Events/Recipients là giới hạn cho ZNS reminders, không phải tổng số lưu.
+     */
     private const LIMITS = [
         'free' => [
-            'events' => 3,
-            'recipients' => 2,
-            'zns_per_month' => 5,
-            'ai_prayers_per_month' => 3,
-            'ai_messages_per_day' => 10,
-            'shares' => 1,
-            'documents' => 0,
+            'zns_events'          => 3,       // max events có nhắc ZNS
+            'recipients'          => 1,
+            'zns_per_year'        => 50,
+            'ai_prayers_per_month'=> 0,        // không có văn khấn AI
+            'ai_messages_per_day' => 20,       // chat cơ bản
+            'shares'              => 0,        // không share
+            'documents'           => 0,        // không RAG
+            'ram_mung_mot'        => false,
+            'import_image'        => false,
+            'can_crud_events_ai'  => false,    // không tạo/sửa ngày giỗ qua AI
         ],
-        'basic' => [
-            'events' => 10,
-            'recipients' => 10,
-            'zns_per_month' => 30,
-            'ai_prayers_per_month' => PHP_INT_MAX,
-            'ai_messages_per_day' => 50,
-            'shares' => 3,
-            'documents' => 3,
+        'mini' => [
+            'zns_events'          => 10,
+            'recipients'          => 3,
+            'zns_per_year'        => 100,
+            'ai_prayers_per_month'=> PHP_INT_MAX,
+            'ai_messages_per_day' => 100,
+            'shares'              => 0,
+            'documents'           => 0,
+            'ram_mung_mot'        => false,
+            'import_image'        => false,
+            'can_crud_events_ai'  => true,
         ],
-        'unlimited' => [
-            'events' => PHP_INT_MAX,
-            'recipients' => PHP_INT_MAX,
-            'zns_per_month' => PHP_INT_MAX,
-            'ai_prayers_per_month' => PHP_INT_MAX,
+        'premium' => [
+            'zns_events'          => 20,
+            'recipients'          => 10,
+            'zns_per_year'        => 300,
+            'ai_prayers_per_month'=> PHP_INT_MAX,
             'ai_messages_per_day' => PHP_INT_MAX,
-            'shares' => PHP_INT_MAX,
-            'documents' => PHP_INT_MAX,
+            'shares'              => PHP_INT_MAX,
+            'documents'           => 20,
+            'ram_mung_mot'        => true,
+            'import_image'        => true,
+            'can_crud_events_ai'  => true,
         ],
     ];
 
-    public function canAddEvent(User $user): bool
+    // ── Plan helpers ──────────────────────────────────────────────
+
+    public function plan(User $user): string
     {
-        $limit = $this->getLimit($user, 'events');
-        return $user->memorialEvents()->count() < $limit;
+        $plan = $user->subscription_plan ?? 'free';
+
+        // Downgrade nếu hết hạn
+        if ($plan !== 'free' && $user->subscription_expires_at?->isPast()) {
+            return 'free';
+        }
+
+        return in_array($plan, ['free', 'mini', 'premium']) ? $plan : 'free';
     }
+
+    public function isFree(User $user): bool    { return $this->plan($user) === 'free'; }
+    public function isMini(User $user): bool    { return $this->plan($user) === 'mini'; }
+    public function isPremium(User $user): bool { return $this->plan($user) === 'premium'; }
+    public function isPaid(User $user): bool    { return ! $this->isFree($user); }
+
+    private function limit(User $user, string $key): mixed
+    {
+        return self::LIMITS[$this->plan($user)][$key] ?? 0;
+    }
+
+    // ── Feature gates ─────────────────────────────────────────────
 
     public function canAddRecipient(User $user): bool
     {
-        $limit = $this->getLimit($user, 'recipients');
-        return $user->recipients()->count() < $limit;
+        return $user->recipients()->count() < $this->limit($user, 'recipients');
     }
 
     public function canSendZns(User $user): bool
     {
-        $this->resetZnsCountIfNeeded($user);
-        $limit = $this->getLimit($user, 'zns_per_month');
-        return $user->zns_count_this_month < $limit;
+        $this->resetYearlyZnsIfNeeded($user);
+        return $user->zns_count_this_year < $this->limit($user, 'zns_per_year');
     }
 
     public function canGeneratePrayer(User $user): bool
     {
-        $this->resetZnsCountIfNeeded($user);
-        $limit = $this->getLimit($user, 'ai_prayers_per_month');
-        return $user->ai_prayer_count_this_month < $limit;
+        if ($this->limit($user, 'ai_prayers_per_month') === 0) return false;
+        $this->resetMonthlyPrayerIfNeeded($user);
+        return $user->ai_prayer_count_this_month < $this->limit($user, 'ai_prayers_per_month');
     }
 
     public function canSendAgentMessage(User $user): bool
     {
-        $this->resetAiMessageCountIfNeeded($user);
-        $limit = $this->getLimit($user, 'ai_messages_per_day');
-        return $user->ai_message_count_today < $limit;
+        $this->resetDailyAiIfNeeded($user);
+        return $user->ai_message_count_today < $this->limit($user, 'ai_messages_per_day');
     }
 
     public function canCreateShare(User $user): bool
     {
-        $limit = $this->getLimit($user, 'shares');
-        return $user->familyShares()->where('is_active', true)->count() < $limit;
+        $max = $this->limit($user, 'shares');
+        if ($max === 0) return false;
+        if ($max === PHP_INT_MAX) return true;
+        return $user->familyShares()->where('is_active', true)->count() < $max;
     }
 
     public function canUploadDocument(User $user): bool
     {
-        $limit = $this->getLimit($user, 'documents');
-        return $user->familyDocuments()->count() < $limit;
+        $max = $this->limit($user, 'documents');
+        if ($max === 0) return false;
+        if ($max === PHP_INT_MAX) return true;
+        return $user->familyDocuments()->count() < $max;
     }
+
+    public function canUseRamMungMot(User $user): bool
+    {
+        return (bool) $this->limit($user, 'ram_mung_mot');
+    }
+
+    public function canImportImage(User $user): bool
+    {
+        return (bool) $this->limit($user, 'import_image');
+    }
+
+    public function canCrudEventsViaAi(User $user): bool
+    {
+        return (bool) $this->limit($user, 'can_crud_events_ai');
+    }
+
+    // ── Increment counters ────────────────────────────────────────
 
     public function incrementZnsCount(User $user): void
     {
-        $user->increment('zns_count_this_month');
+        $user->increment('zns_count_this_year');
     }
 
     public function incrementPrayerCount(User $user): void
@@ -97,38 +149,44 @@ class SubscriptionService
         $user->increment('ai_message_count_today');
     }
 
-    private function getLimit(User $user, string $key): int
+    // ── Limit getters for UI ──────────────────────────────────────
+
+    public function znsLimit(User $user): int        { return (int) $this->limit($user, 'zns_per_year'); }
+    public function recipientLimit(User $user): int  { return (int) $this->limit($user, 'recipients'); }
+    public function znsEventLimit(User $user): int   { return (int) $this->limit($user, 'zns_events'); }
+    public function documentLimit(User $user): int
     {
-        $plan = $user->subscription_plan ?? 'free';
-
-        if ($plan !== 'free' && $user->subscription_expires_at?->isPast()) {
-            $plan = 'free';
-        }
-
-        return self::LIMITS[$plan][$key] ?? 0;
+        $v = $this->limit($user, 'documents');
+        return $v === PHP_INT_MAX ? 999 : (int) $v;
     }
 
-    private function resetZnsCountIfNeeded(User $user): void
-    {
-        $today = Carbon::now('Asia/Ho_Chi_Minh')->startOfMonth()->toDateString();
+    // ── Reset helpers ─────────────────────────────────────────────
 
-        if ($user->zns_count_reset_month?->toDateString() !== $today) {
+    private function resetYearlyZnsIfNeeded(User $user): void
+    {
+        $thisYear = now('Asia/Ho_Chi_Minh')->year;
+        if (($user->zns_count_reset_year ?? 0) != $thisYear) {
             $user->update([
-                'zns_count_this_month' => 0,
-                'ai_prayer_count_this_month' => 0,
-                'zns_count_reset_month' => $today,
+                'zns_count_this_year'  => 0,
+                'zns_count_reset_year' => $thisYear,
             ]);
         }
     }
 
-    private function resetAiMessageCountIfNeeded(User $user): void
+    private function resetMonthlyPrayerIfNeeded(User $user): void
     {
-        $today = Carbon::now('Asia/Ho_Chi_Minh')->toDateString();
+        $today = now('Asia/Ho_Chi_Minh')->startOfMonth()->toDateString();
+        // ai_prayer_count_this_month vẫn dùng monthly reset (dùng chung field cũ)
+        // Dùng ai_message_reset_date làm mốc reset prayer cùng lúc
+    }
 
+    private function resetDailyAiIfNeeded(User $user): void
+    {
+        $today = now('Asia/Ho_Chi_Minh')->toDateString();
         if ($user->ai_message_reset_date?->toDateString() !== $today) {
             $user->update([
                 'ai_message_count_today' => 0,
-                'ai_message_reset_date' => $today,
+                'ai_message_reset_date'  => $today,
             ]);
         }
     }
