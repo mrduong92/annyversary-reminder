@@ -27,7 +27,6 @@
             <li class="flex gap-2"><span class="text-green-500">✓</span> Gia phả không giới hạn</li>
             <li class="flex gap-2"><span class="text-green-500">✓</span> Ngày giỗ không giới hạn</li>
             <li class="flex gap-2"><span class="text-green-500">✓</span> AI hỏi ngày giỗ, tra cứu</li>
-            <li class="flex gap-2"><span class="text-green-500">✓</span> Tối đa 3 ngày giỗ có nhắc ZNS</li>
             <li class="flex gap-2"><span class="text-green-500">✓</span> 1 người nhận ZNS</li>
             <li class="flex gap-2 text-gray-300"><span>✗</span> Nhắc Rằm, Mùng 1</li>
             <li class="flex gap-2 text-gray-300"><span>✗</span> Soạn văn khấn AI</li>
@@ -53,7 +52,6 @@
         </div>
         <ul class="space-y-2.5 text-sm text-gray-600 flex-1 mb-6">
             <li class="flex gap-2"><span class="text-green-500">✓</span> Tất cả tính năng Free</li>
-            <li class="flex gap-2"><span class="text-green-500">✓</span> Tối đa 10 ngày giỗ có nhắc</li>
             <li class="flex gap-2"><span class="text-green-500">✓</span> 3 người nhận ZNS</li>
             <li class="flex gap-2"><span class="text-green-500">✓</span> AI soạn văn khấn</li>
             <li class="flex gap-2"><span class="text-green-500">✓</span> AI tạo/sửa ngày giỗ qua chat</li>
@@ -85,8 +83,6 @@
         </div>
         <ul class="space-y-2.5 text-sm text-gray-300 flex-1 mb-6">
             <li class="flex gap-2"><span class="text-green-400">✓</span> Tất cả tính năng Mini</li>
-            <li class="flex gap-2"><span class="text-green-400">✓</span> Tối đa 20 ngày giỗ có nhắc</li>
-            <li class="flex gap-2"><span class="text-green-400">✓</span> 10 người nhận ZNS</li>
             <li class="flex gap-2"><span class="text-green-400">✓</span> Nhắc Rằm & Mùng 1</li>
             <li class="flex gap-2"><span class="text-green-400">✓</span> Chia sẻ chatbot cho cả nhà</li>
             <li class="flex gap-2"><span class="text-green-400">✓</span> Upload tài liệu gia đình (RAG)</li>

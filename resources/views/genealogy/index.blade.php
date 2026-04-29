@@ -334,14 +334,19 @@
                     const m       = d.data.data;
                     const yrs     = [m.birthday, m.death_year].filter(Boolean).join('–');
                     const dead    = m.is_deceased;
+                    const isFemale = m.gender === 'F';
+                    const genderDot = isFemale
+                        ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f472b6;margin-left:5px;vertical-align:middle" title="Nữ"></span>'
+                        : '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#60a5fa;margin-left:5px;vertical-align:middle" title="Nam"></span>';
+                    const borderColor = dead ? '#d1d5db' : (isFemale ? '#fbcfe8' : '#c7d2fe');
                     const display = m.pronoun ? `${m.pronoun} ${m['first name']}` : (m['first name'] || '?');
                     const safeName = display.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     return `<div style="
                         background:${dead ? '#f9fafb' : '#fff'};
-                        border:1px solid ${dead ? '#d1d5db' : '#c7d2fe'};
+                        border:1px solid ${borderColor};
                         border-radius:10px;padding:10px 14px;min-width:180px;text-align:center;
                         box-shadow:0 2px 6px rgba(0,0,0,.06);">
-                        <div style="font-size:13px;font-weight:600;color:${dead ? '#6b7280' : '#1f2937'};line-height:1.4;margin-bottom:2px">${display}</div>
+                        <div style="font-size:13px;font-weight:600;color:${dead ? '#6b7280' : '#1f2937'};line-height:1.4;margin-bottom:2px">${display}${genderDot}</div>
                         ${yrs ? `<div style="font-size:11px;color:#9ca3af">${yrs}</div>` : ''}
                         ${m.has_event ? `<div style="font-size:11px;color:#7c3aed;margin-top:2px">📅 Ngày giỗ</div>` : ''}
                         <div data-actions style="display:flex;gap:6px;justify-content:center;margin-top:8px;padding-top:7px;border-top:1px solid #f3f4f6">
