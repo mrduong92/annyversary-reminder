@@ -7,6 +7,7 @@ use App\Http\Controllers\EventController;
 use App\Http\Controllers\FamilyGroupController;
 use App\Http\Controllers\FamilyMemberController;
 use App\Http\Controllers\ImportController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrayerController;
 use App\Http\Controllers\RecipientController;
 use App\Http\Controllers\SettingsController;
@@ -18,6 +19,13 @@ Route::get('/', function () { return view('welcome'); });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
 Route::get('/upgrade', [UpgradeController::class, 'index'])->middleware('auth')->name('upgrade');
+
+// Payment
+Route::middleware(['auth'])->group(function () {
+    Route::post('/payment', [PaymentController::class, 'create'])->name('payment.create');
+    Route::get('/payment/{order}', [PaymentController::class, 'show'])->name('payment.show');
+    Route::get('/payment/{order}/status', [PaymentController::class, 'status'])->name('payment.status');
+});
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');

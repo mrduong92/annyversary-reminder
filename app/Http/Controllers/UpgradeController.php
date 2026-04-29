@@ -16,8 +16,6 @@ class UpgradeController extends Controller
         return view('upgrade.index', [
             'user'        => $user,
             'currentPlan' => $this->subscription->plan($user),
-            'znsUsed'     => $user->zns_count_this_year ?? 0,
-            'znsLimit'    => $this->subscription->znsLimit($user),
         ]);
     }
 }

@@ -35,4 +35,10 @@ return [
         'redirect'      => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
+    'sepay' => [
+        'webhook_token' => env('SEPAY_WEBHOOK_TOKEN'),
+        'bank_code'     => env('SEPAY_BANK_CODE', 'MB'),       // mã ngân hàng VietQR
+        'bank_account'  => env('SEPAY_BANK_ACCOUNT'),          // số tài khoản
+    ],
+
 ];
