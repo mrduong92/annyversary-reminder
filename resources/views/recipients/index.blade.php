@@ -79,11 +79,10 @@
 
         @php
             $plan   = Auth::user()->fresh()->subscription_plan ?? 'free';
-            $limits = ['free' => 2, 'basic' => 10, 'unlimited' => PHP_INT_MAX];
-            $limit  = $limits[$plan];
-            $count  = $recipients->count();
+            $limit  = app(SubscriptionService::class)->recipientLimit(Auth::user());
+            $count  = app(SubscriptionService::class)->recipientCount(Auth::user());
         @endphp
-        @if ($plan !== 'unlimited')
+        @if ($plan !== 'premium')
         <p class="mt-3 text-xs text-gray-400 text-right">
             Đã dùng {{ $count }}/{{ $limit }} người nhận (gói {{ strtoupper($plan) }})
             @if ($count >= $limit)

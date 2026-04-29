@@ -37,10 +37,8 @@ Route::middleware(['auth'])->group(function () {
     // Events
     Route::resource('events', EventController::class)->except(['show']);
     Route::get('events/{event}', [EventController::class, 'show'])->name('events.show');
-    Route::post('events/{event}/recipients/{recipient}', [EventController::class, 'attachRecipient'])->name('events.recipients.attach');
-    Route::delete('events/{event}/recipients/{recipient}', [EventController::class, 'detachRecipient'])->name('events.recipients.detach');
 
-    // Recipients
+    // Người nhận thông báo — quản lý trong màn hình ngày giỗ
     Route::resource('recipients', RecipientController::class)->except(['show']);
 
     // Prayers — CRUD + API lưu từ chat
@@ -74,6 +72,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('genealogy', FamilyMemberController::class)->except(['show']);
     Route::get('genealogy-data', [FamilyMemberController::class, 'treeData'])->name('genealogy.data');
     Route::post('genealogy-save', [FamilyMemberController::class, 'treeSave'])->name('genealogy.save');
+    Route::post('genealogy/{genealogy}/add-relative', [FamilyMemberController::class, 'addRelative'])->name('genealogy.add-relative');
 
     // Share — toggle link của group đang active (JSON API, gọi từ chat UI)
     Route::post('share/enable', [ShareController::class, 'enable'])->name('share.enable');

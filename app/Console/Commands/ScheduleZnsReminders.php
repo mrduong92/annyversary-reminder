@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\SendZnsReminderJob;
 use App\Models\MemorialEvent;
+use App\Models\Recipient;
 use App\Services\SubscriptionService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -20,42 +21,33 @@ class ScheduleZnsReminders extends Command
 
     public function handle(): void
     {
-        $reminderDays = array_map(
-            'intval',
-            explode(',', config('app.reminder_days_before', '1,3'))
-        );
-
-        $today      = Carbon::now('Asia/Ho_Chi_Minh')->toDateString();
-        $dispatched = 0;
+        $reminderDays = array_map('intval', explode(',', config('app.reminder_days_before', '1,3')));
+        $today        = Carbon::now('Asia/Ho_Chi_Minh')->toDateString();
+        $dispatched   = 0;
 
         foreach ($reminderDays as $daysAhead) {
             $targetDate = Carbon::now('Asia/Ho_Chi_Minh')->addDays($daysAhead)->toDateString();
 
-            $events = MemorialEvent::with([
-                    'user',
-                    // Chỉ load recipient đang active, kèm pivot notify_days_before
-                    'recipients' => fn ($q) => $q->active()->withPivot('notify_days_before'),
-                ])
+            $events = MemorialEvent::with('user')
                 ->active()
                 ->where('solar_date_next', $targetDate)
                 ->get();
 
             foreach ($events as $event) {
                 if (! $this->subscriptionService->canSendZns($event->user)) {
-                    $this->warn("User {$event->user_id} reached ZNS limit, skipping event {$event->id}");
+                    $this->warn("User {$event->user_id} đã hết ZNS quota, bỏ qua event {$event->id}");
                     continue;
                 }
 
-                foreach ($event->recipients as $recipient) {
-                    // Dùng notify_days_before của pivot nếu có, fallback về default của recipient
-                    $pivotDays = $recipient->pivot->notify_days_before
-                        ? json_decode($recipient->pivot->notify_days_before, true)
-                        : null;
+                // Lấy TẤT CẢ recipients của family_group — áp dụng toàn bộ ngày giỗ
+                $recipients = Recipient::where('family_group_id', $event->family_group_id)
+                    ->where('is_active', true)
+                    ->get();
 
-                    $effectiveDays = $recipient->effectiveDays($pivotDays);
+                foreach ($recipients as $recipient) {
+                    $effectiveDays = $recipient->notify_days_before ?? [1];
 
-                    // Chỉ dispatch nếu daysAhead nằm trong danh sách nhắc của recipient này
-                    if (in_array($daysAhead, $effectiveDays)) {
+                    if (in_array($daysAhead, (array) $effectiveDays)) {
                         SendZnsReminderJob::dispatch($event, $recipient);
                         $dispatched++;
                     }

@@ -83,4 +83,46 @@ class FamilyTreeService
 
         return $lines->implode("\n");
     }
+
+    /**
+     * Detech root member.
+     */
+    public function detectRootMember(Collection $nodes)
+    {
+        $nodesById = $nodes->keyBy('id');
+
+        $rootCandidates = $nodes->filter(function ($n) use ($nodesById) {
+            $noParent = empty($n['fid']) && empty($n['mid']);
+            if (! $noParent) return false;
+
+            $spouseIds = $n['pids'] ?? [];
+
+            // Case A: không có spouse
+            if (empty($spouseIds)) {
+                return true;
+            }
+
+            // Case B: có spouse nhưng spouse cũng không có cha mẹ
+            $allSpouseNoParent = collect($spouseIds)->every(function ($sid) use ($nodesById) {
+                $sp = $nodesById->get($sid);
+                if (! $sp) return false;
+
+                return empty($sp['fid']) && empty($sp['mid']);
+            });
+
+            return $allSpouseNoParent;
+        });
+
+        // Ưu tiên nam
+        $root = $rootCandidates
+            ->sortByDesc(fn($n) => $n['gender'] === 'male')
+            ->first();
+
+        // Fallback nếu không tìm được
+        if (! $root) {
+            $root = $nodes->sortBy(fn($n) => $n['birth_year'] ?? PHP_INT_MAX)->first();
+        }
+
+        return $root;
+    }
 }

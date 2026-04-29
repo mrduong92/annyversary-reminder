@@ -116,18 +116,72 @@
         {{-- Plan usage --}}
         @php
             $plan = Auth::user()->fresh()->subscription_plan ?? 'free';
-            $limits = ['free' => 3, 'basic' => 10, 'unlimited' => PHP_INT_MAX];
-            $limit = $limits[$plan];
-            $count = $events->count();
+            $znsLimit = app(SubscriptionService::class)->znsLimit(Auth::user());
+            $znsUsed = app(SubscriptionService::class)->znsUsed(Auth::user());
+            $recipientLimit = app(SubscriptionService::class)->recipientLimit(Auth::user());
+            $recipientCount = app(SubscriptionService::class)->recipientCount(Auth::user());
         @endphp
-        @if ($plan !== 'unlimited')
         <p class="mt-3 text-xs text-gray-400 text-right">
-            Đã dùng {{ $count }}/{{ $limit }} ngày giỗ (gói {{ strtoupper($plan) }})
-            @if ($count >= $limit)
-                · <a href="#" class="text-primary-600 hover:underline">Nâng cấp</a>
+            ZNS: {{ $znsUsed }}/{{ $znsLimit }} tin/năm · Người nhận: {{ $recipientCount }}/{{ $recipientLimit }} (gói {{ strtoupper($plan) }})
+            @if ($znsUsed >= $znsLimit || $recipientCount >= $recipientLimit)
+                · <a href="{{ route('upgrade') }}" class="text-primary-600 hover:underline">Nâng cấp</a>
             @endif
         </p>
-        @endif
     @endif
+
+    {{-- Người nhận thông báo — áp dụng cho toàn bộ ngày giỗ --}}
+    @php $recipients = active_group()->recipients()->orderBy('name')->get(); @endphp
+    <div class="mt-8">
+        <div class="flex items-center justify-between mb-3">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">Người nhận thông báo</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Nhận thông báo ZNS cho tất cả ngày giỗ trong nhóm này</p>
+            </div>
+            <a href="{{ route('recipients.create') }}"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors">
+                + Thêm người nhận
+            </a>
+        </div>
+
+        @if ($recipients->isEmpty())
+            <div class="bg-white rounded-xl border border-dashed border-gray-200 py-8 text-center">
+                <p class="text-sm text-gray-400">Chưa có người nhận nào.</p>
+                <a href="{{ route('recipients.create') }}" class="mt-2 inline-block text-xs text-primary-600 hover:underline">
+                    Thêm người nhận để bắt đầu nhận thông báo ZNS
+                </a>
+            </div>
+        @else
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <ul class="divide-y divide-gray-100">
+                    @foreach ($recipients as $r)
+                    <li class="flex items-center justify-between px-5 py-3 {{ $r->is_active ? '' : 'opacity-50' }}">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 text-xs font-semibold shrink-0">
+                                {{ mb_substr($r->name, 0, 1) }}
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-800">{{ $r->name }}</p>
+                                <p class="text-xs text-gray-400">{{ $r->phone }}
+                                    · Nhắc: {{ collect($r->notify_days_before ?? [1])->map(fn($d) => $d == 0 ? 'đúng ngày' : "trước {$d} ngày")->join(', ') }}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            @if (!$r->is_active)
+                                <span class="text-xs text-gray-400">Đã tắt</span>
+                            @endif
+                            <a href="{{ route('recipients.edit', $r) }}" class="text-xs text-primary-600 hover:underline font-medium">Sửa</a>
+                            <form method="POST" action="{{ route('recipients.destroy', $r) }}"
+                                onsubmit="return confirm('Xóa {{ $r->name }}?')">
+                                @csrf @method('DELETE')
+                                <button class="text-xs text-red-400 hover:underline">Xóa</button>
+                            </form>
+                        </div>
+                    </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+    </div>
 
 </x-app-layout>

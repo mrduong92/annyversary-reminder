@@ -11,18 +11,18 @@
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Ngày giỗ</p>
             <p class="text-3xl font-bold text-gray-900 mt-1">{{ $eventCount }}</p>
             <p class="text-xs text-gray-400 mt-1">
-                / {{ $limits[$plan]['events'] === PHP_INT_MAX ? '∞' : $limits[$plan]['events'] }} tối đa
+                Không giới hạn (tạo tự động từ gia phả)
             </p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-5">
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Người nhận</p>
             <p class="text-3xl font-bold text-gray-900 mt-1">{{ $recipientCount }}</p>
             <p class="text-xs text-gray-400 mt-1">
-                / {{ $limits[$plan]['recipients'] === PHP_INT_MAX ? '∞' : $limits[$plan]['recipients'] }} tối đa
+                / {{ $recipientLimit === PHP_INT_MAX ? '∞' : $recipientLimit }} tối đa
             </p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">ZNS tháng này</p>
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">ZNS năm này</p>
             <p class="text-3xl font-bold text-gray-900 mt-1">{{ $znsUsed }}</p>
             <p class="text-xs text-gray-400 mt-1">
                 / {{ $znsLimit === PHP_INT_MAX ? '∞' : $znsLimit }} tin
@@ -31,7 +31,13 @@
         <div class="bg-white rounded-xl border border-gray-200 p-5">
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Văn khấn</p>
             <p class="text-3xl font-bold text-gray-900 mt-1">{{ $prayerCount }}</p>
-            <p class="text-xs text-gray-400 mt-1">đã lưu</p>
+            <p class="text-xs text-gray-400 mt-1">
+                @if ($plan === 'free')
+                    Không có (gói Free)
+                @else
+                    Không giới hạn (gói {{ strtoupper($plan) }})
+                @endif
+            </p>
         </div>
     </div>
 

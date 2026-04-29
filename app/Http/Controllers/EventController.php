@@ -5,11 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreMemorialEventRequest;
 use App\Http\Requests\UpdateMemorialEventRequest;
 use App\Models\MemorialEvent;
-use App\Models\Recipient;
 use App\Services\LunarCalendarService;
 use App\Services\SubscriptionService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -35,39 +33,32 @@ class EventController extends Controller
     public function create(): View
     {
         $this->authorizeLimit();
-        $recipients = active_group()->recipients()->active()->orderBy('name')->get();
 
-        // Chỉ hiện members chưa có ngày giỗ (gợi ý tạo mới)
-        // và tất cả members để user vẫn có thể chọn bất kỳ ai
         $existingMemberIds = active_group()->memorialEvents()->pluck('family_member_id');
         $availableMembers  = active_group()->familyMembers()
+            ->whereNotNull('death_year') // Chỉ hiển thị thành viên đã mất
             ->whereNotIn('id', $existingMemberIds)
             ->orderBy('death_year', 'desc')
             ->orderBy('name')
             ->get();
-        $allMembers = active_group()->familyMembers()->orderBy('name')->get();
+        $allMembers = active_group()->familyMembers()
+            ->whereNotNull('death_year') // Chỉ hiển thị thành viên đã mất
+            ->orderBy('name')
+            ->get();
 
-        $attachedRecipientIds = [];
-        return view('events.create', compact('recipients', 'availableMembers', 'allMembers', 'attachedRecipientIds'));
+        return view('events.create', compact('availableMembers', 'allMembers'));
     }
 
     public function store(StoreMemorialEventRequest $request): RedirectResponse
     {
         $this->authorizeLimit();
 
-        $validated    = $request->validated();
-        $recipientIds = $validated['recipient_ids'] ?? [];
-        unset($validated['recipient_ids']);
-
+        $validated = $request->validated();
         $event = active_group()->memorialEvents()->create([
             ...$validated,
             'user_id'         => Auth::id(),
             'solar_date_next' => $this->resolveSolarNext($request->date_type, $request->lunar_day, $request->lunar_month),
         ]);
-
-        if (! empty($recipientIds)) {
-            $event->recipients()->attach($recipientIds);
-        }
 
         // Sync ngược: cập nhật family_member.memorial_event_id
         \App\Models\FamilyMember::where('id', $validated['family_member_id'])
@@ -82,73 +73,36 @@ class EventController extends Controller
     {
         $this->authorizeOwner($event);
         $event = $this->withDaysUntil($event);
-
-        $attached    = $event->recipients()->orderBy('name')->get();
-        $attachedIds = $attached->pluck('id');
-        $available   = active_group()->recipients()
-            ->whereNotIn('id', $attachedIds)
-            ->orderBy('name')
-            ->get();
-
-        return view('events.show', compact('event', 'attached', 'available'));
-    }
-
-    public function attachRecipient(Request $request, MemorialEvent $event, Recipient $recipient): RedirectResponse
-    {
-        $this->authorizeOwner($event);
-        abort_if($recipient->user_id !== Auth::id(), 403);
-
-        $days = $request->input('notify_days_before');
-        $event->recipients()->syncWithoutDetaching([
-            $recipient->id => ['notify_days_before' => $days ? json_encode($days) : null],
-        ]);
-
-        return back()->with('success', 'Đã thêm ' . $recipient->name . ' vào danh sách nhận thông báo.');
-    }
-
-    public function detachRecipient(MemorialEvent $event, Recipient $recipient): RedirectResponse
-    {
-        $this->authorizeOwner($event);
-        $event->recipients()->detach($recipient->id);
-
-        return back()->with('success', 'Đã xóa ' . $recipient->name . ' khỏi danh sách thông báo.');
+        return view('events.show', compact('event'));
     }
 
     public function edit(MemorialEvent $event): View
     {
         $this->authorizeOwner($event);
-        $recipients           = active_group()->recipients()->active()->orderBy('name')->get();
-        $allMembers           = active_group()->familyMembers()->orderBy('name')->get();
-        $attachedRecipientIds = $event->recipients()->pluck('recipients.id')->toArray();
-        return view('events.edit', compact('event', 'recipients', 'allMembers', 'attachedRecipientIds'));
+        $allMembers = active_group()->familyMembers()
+            ->whereNotNull('death_year') // Chỉ hiển thị thành viên đã mất
+            ->orderBy('name')
+            ->get();
+        return view('events.edit', compact('event', 'allMembers'));
     }
 
     public function update(UpdateMemorialEventRequest $request, MemorialEvent $event): RedirectResponse
     {
         $validated = $request->validated();
-        $newIds    = $validated['recipient_ids'] ?? [];
-        unset($validated['recipient_ids']);
 
         $event->update([
             ...$validated,
             'solar_date_next' => $this->resolveSolarNext($request->date_type, $request->lunar_day, $request->lunar_month),
         ]);
 
-        $currentIds = $event->recipients()->pluck('recipients.id')->toArray();
-        $toDetach   = array_diff($currentIds, $newIds);
-        $toAttach   = array_diff($newIds, $currentIds);
-
-        if (! empty($toDetach)) $event->recipients()->detach($toDetach);
-        if (! empty($toAttach)) $event->recipients()->attach($toAttach);
-
         return redirect()->route('events.index')
-            ->with('success', 'Đã cập nhật ngày giỗ ' . $event->name . '.');
+            ->with('success', 'Đã cập nhật ngày giỗ ' . $event->displayName() . '.');
     }
 
     public function destroy(MemorialEvent $event): RedirectResponse
     {
         $this->authorizeOwner($event);
-        $name = $event->name;
+        $name = $event->displayName();
         $event->delete();
 
         return redirect()->route('events.index')

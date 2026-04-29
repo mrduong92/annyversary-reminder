@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FamilyMember;
 use App\Services\FamilyTreeService;
-use App\Services\LunarCalendarService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +15,6 @@ class FamilyMemberController extends Controller
 {
     public function __construct(
         private readonly FamilyTreeService $tree,
-        private readonly LunarCalendarService $lunar,
     ) {}
 
     public function index(): View
@@ -86,11 +85,6 @@ class FamilyMemberController extends Controller
         $this->authorize($member);
         $group   = active_group();
         $members = $group->familyMembers()->where('id', '!=', $member->id)->orderBy('name')->get();
-        $events  = $group->memorialEvents()->with('familyMember')->orderBy('solar_date_next')->get();
-
-        $currentParentIds = DB::table('family_relationships')
-            ->where('related_member_id', $member->id)->where('type', 'parent_child')
-            ->pluck('member_id')->toArray();
 
         $currentSpouseId = DB::table('family_relationships')
             ->where('type', 'spouse')
@@ -149,40 +143,48 @@ class FamilyMemberController extends Controller
             ->with('success', "Đã cập nhật {$member->name}.");
     }
 
-    public function destroy(FamilyMember $genealogy): RedirectResponse
+    public function destroy(FamilyMember $genealogy): RedirectResponse|JsonResponse
     {
         $member = $genealogy;
         $this->authorize($member);
         $name = $member->name;
         $member->delete();
 
+        if (request()->wantsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
         return redirect()->route('genealogy.index')
             ->with('success', "Đã xóa {$name} khỏi gia phả.");
     }
 
     /** API: trả về JSON cho Balkan FamilyTree JS */
-    public function treeData(): \Illuminate\Http\JsonResponse
+    public function treeData(): JsonResponse
     {
-        $group   = active_group();
-        $members = $group->familyMembers()->get();
+        $group     = active_group();
+        $members   = $group->familyMembers()->get();
+        $memberIds = $members->pluck('id');
 
-        // Lấy tất cả relationships 1 lần (tránh N+1)
+        // Lấy tất cả relationships 1 lần (tránh N+1), chỉ lấy quan hệ trong group
         $parentChild = DB::table('family_relationships')
             ->where('type', 'parent_child')
-            ->whereIn('member_id', $members->pluck('id'))
-            ->orWhere(fn ($q) => $q->where('type', 'parent_child')->whereIn('related_member_id', $members->pluck('id')))
-            ->get();
+            ->where(fn ($q) => $q
+                ->whereIn('member_id', $memberIds)
+                ->orWhereIn('related_member_id', $memberIds)
+            )->get();
 
         $spouses = DB::table('family_relationships')
             ->where('type', 'spouse')
             ->where(fn ($q) => $q
-                ->whereIn('member_id', $members->pluck('id'))
-                ->orWhereIn('related_member_id', $members->pluck('id'))
+                ->whereIn('member_id', $memberIds)
+                ->orWhereIn('related_member_id', $memberIds)
             )->get();
 
-        $nodes = $members->map(function (FamilyMember $m) use ($parentChild, $spouses) {
-            // Cha/mẹ của member này
-            $parents = $parentChild->where('related_member_id', $m->id);
+        $nodes = $members->map(function (FamilyMember $m) use ($parentChild, $spouses, $memberIds) {
+            // Cha/mẹ của member này — chỉ tính parent thuộc cùng group
+            $parents = $parentChild
+                ->where('related_member_id', $m->id)
+                ->filter(fn ($r) => $memberIds->contains($r->member_id));
             $father  = $parents->first(fn ($r) => FamilyMember::find($r->member_id)?->gender === 'male');
             $mother  = $parents->first(fn ($r) => FamilyMember::find($r->member_id)?->gender === 'female');
 
@@ -191,10 +193,11 @@ class FamilyMemberController extends Controller
                 $father = $parents->first();
             }
 
-            // Spouse IDs
+            // Spouse IDs — chỉ lấy spouse thuộc cùng group
             $pids = $spouses
                 ->filter(fn ($r) => $r->member_id == $m->id || $r->related_member_id == $m->id)
                 ->map(fn ($r) => $r->member_id == $m->id ? $r->related_member_id : $r->member_id)
+                ->filter(fn ($pid) => $memberIds->contains($pid))
                 ->values()->toArray();
 
             return [
@@ -203,6 +206,7 @@ class FamilyMemberController extends Controller
                 'mid'          => $mother?->member_id,
                 'pids'         => $pids,
                 'name'         => $m->name,
+                'pronoun'      => $m->pronoun,
                 'gender'       => $m->gender === 'male' ? 'male' : ($m->gender === 'female' ? 'female' : 'male'),
                 'birth_year'   => $m->birth_year,
                 'death_year'   => $m->death_year,
@@ -210,14 +214,206 @@ class FamilyMemberController extends Controller
                 'has_event'    => $m->memorial_event_id !== null,
                 'event_url'    => $m->memorial_event_id ? route('events.show', $m->memorial_event_id) : null,
                 'edit_url'     => route('genealogy.edit', $m),
+                'delete_url'   => route('genealogy.destroy', $m),
             ];
         });
+
+        // Root lên đầu để family-chart focus đúng
+        $root = $this->tree->detectRootMember($nodes);
+        if ($root) {
+            $nodes = $nodes->sortBy(fn($n) => $n['id'] === $root['id'] ? 0 : 1);
+        }
 
         return response()->json($nodes->values());
     }
 
+    /** API: thêm thành viên mới kèm quan hệ với một thành viên có sẵn */
+    public function addRelative(Request $request, FamilyMember $genealogy): JsonResponse
+    {
+        abort_unless($genealogy->family_group_id === active_group()->id, 403);
+
+        $data = $request->validate([
+            'type'    => ['required', 'in:father,mother,spouse,son,daughter'],
+            'name'    => ['required', 'string', 'max:100'],
+            'pronoun' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $group = active_group();
+
+        $gender = match($data['type']) {
+            'father'   => 'male',
+            'son'      => 'male',
+            'mother'   => 'female',
+            'daughter' => 'female',
+            'spouse'   => $genealogy->gender === 'male' ? 'female' : 'male',
+        };
+
+        $newMember = $group->familyMembers()->create([
+            'name'            => $data['name'],
+            'pronoun'         => filled($data['pronoun'] ?? null) ? $data['pronoun'] : null,
+            'gender'          => $gender,
+            'user_id'         => Auth::id(),
+            'death_date_type' => 'lunar',
+        ]);
+
+        $now = now();
+        match($data['type']) {
+            'father', 'mother' => DB::table('family_relationships')->insertOrIgnore([
+                'member_id' => $newMember->id, 'related_member_id' => $genealogy->id,
+                'type' => 'parent_child', 'created_at' => $now, 'updated_at' => $now,
+            ]),
+            'son', 'daughter' => DB::table('family_relationships')->insertOrIgnore([
+                'member_id' => $genealogy->id, 'related_member_id' => $newMember->id,
+                'type' => 'parent_child', 'created_at' => $now, 'updated_at' => $now,
+            ]),
+            'spouse' => DB::table('family_relationships')->insertOrIgnore([
+                'member_id' => min($genealogy->id, $newMember->id),
+                'related_member_id' => max($genealogy->id, $newMember->id),
+                'type' => 'spouse', 'created_at' => $now, 'updated_at' => $now,
+            ]),
+        };
+
+        // Khi thêm con: nếu $genealogy đã có spouse, tự động gán spouse làm cha/mẹ còn lại
+        if (in_array($data['type'], ['son', 'daughter'])) {
+            $spouseRel = DB::table('family_relationships')
+                ->where('type', 'spouse')
+                ->where(fn ($q) => $q
+                    ->where('member_id', $genealogy->id)
+                    ->orWhere('related_member_id', $genealogy->id)
+                )
+                ->first();
+
+            if ($spouseRel) {
+                $spouseId = $spouseRel->member_id === $genealogy->id
+                    ? $spouseRel->related_member_id
+                    : $spouseRel->member_id;
+
+                DB::table('family_relationships')->insertOrIgnore([
+                    'member_id'         => $spouseId,
+                    'related_member_id' => $newMember->id,
+                    'type'              => 'parent_child',
+                    'created_at'        => $now,
+                    'updated_at'        => $now,
+                ]);
+            }
+        }
+
+        return response()->json(['ok' => true, 'id' => $newMember->id, 'name' => $newMember->name]);
+    }
+
+    /** @deprecated — tạm giữ route, không dùng nữa */
+    public function treeSync(Request $request): JsonResponse
+    {
+        $group = active_group();
+        $nodes = collect($request->input('nodes', []));
+
+        $dbIds = $group->familyMembers()->pluck('id')->map('intval')->toArray();
+
+        // IDs thực (số nguyên) = thành viên đã có trong DB
+        $incomingRealIds = $nodes
+            ->filter(fn($n) => ctype_digit((string) $n['id']))
+            ->pluck('id')->map('intval')->toArray();
+
+        // Xóa thành viên đã bị remove khỏi tree
+        $toDelete = array_diff($dbIds, $incomingRealIds);
+        if ($toDelete) {
+            $group->familyMembers()->whereIn('id', $toDelete)->delete();
+        }
+
+        // Build id map: client_id → real_db_id
+        $idMap = [];
+        foreach ($dbIds as $id) {
+            $idMap[(string) $id] = $id;
+        }
+
+        foreach ($nodes as $node) {
+            $d    = $node['data'] ?? [];
+            $name = trim($d['first name'] ?? '');
+            if (! $name) continue;
+
+            $fields = [
+                'name'       => $name,
+                'pronoun'    => filled($d['pronoun']    ?? null) ? trim($d['pronoun'])    : null,
+                'gender'     => ($d['gender'] ?? 'M') === 'F' ? 'female' : 'male',
+                'birth_year' => filled($d['birthday']   ?? null) ? (int) $d['birthday']   : null,
+                'death_year' => filled($d['death_year'] ?? null) ? (int) $d['death_year'] : null,
+            ];
+
+            $nodeId = (string) $node['id'];
+
+            if (ctype_digit($nodeId) && in_array((int) $nodeId, $dbIds)) {
+                $group->familyMembers()->where('id', (int) $nodeId)->update($fields);
+                $idMap[$nodeId] = (int) $nodeId;
+            } else {
+                $m = $group->familyMembers()->create([
+                    ...$fields,
+                    'user_id'         => Auth::id(),
+                    'death_date_type' => 'lunar',
+                ]);
+                $idMap[$nodeId] = $m->id;
+            }
+        }
+
+        // Refresh sau khi xóa
+        $allMemberIds = $group->familyMembers()->pluck('id')->toArray();
+
+        // Tính expected relationships từ rels của từng node
+        $expectedParentChild = [];
+        $expectedSpouses     = [];
+
+        foreach ($nodes as $node) {
+            $rels       = $node['rels'] ?? [];
+            $nodeRealId = $idMap[(string) $node['id']] ?? null;
+            if (! $nodeRealId) continue;
+
+            // Hỗ trợ cả legacy (father/mother) lẫn mới (parents[])
+            $parents = [];
+            if (! empty($rels['father']))  $parents[] = (string) $rels['father'];
+            if (! empty($rels['mother']))  $parents[] = (string) $rels['mother'];
+            if (! empty($rels['parents'])) {
+                foreach ((array) $rels['parents'] as $p) $parents[] = (string) $p;
+            }
+            foreach (array_unique($parents) as $parentId) {
+                $pid = $idMap[$parentId] ?? null;
+                if ($pid && in_array($pid, $allMemberIds)) {
+                    $expectedParentChild["{$pid}-{$nodeRealId}"] = [(int) $pid, (int) $nodeRealId];
+                }
+            }
+
+            foreach ((array) ($rels['spouses'] ?? []) as $spouseId) {
+                $sid = $idMap[(string) $spouseId] ?? null;
+                if ($sid && in_array($sid, $allMemberIds)) {
+                    $a = min((int) $nodeRealId, (int) $sid);
+                    $b = max((int) $nodeRealId, (int) $sid);
+                    $expectedSpouses["{$a}-{$b}"] = [$a, $b];
+                }
+            }
+        }
+
+        // Xóa toàn bộ relationships của group rồi recreate
+        DB::table('family_relationships')
+            ->where(fn($q) => $q
+                ->whereIn('member_id', $allMemberIds)
+                ->orWhereIn('related_member_id', $allMemberIds)
+            )->delete();
+
+        $now     = now();
+        $inserts = [];
+        foreach ($expectedParentChild as [$pid, $cid]) {
+            $inserts[] = ['member_id' => $pid, 'related_member_id' => $cid, 'type' => 'parent_child', 'created_at' => $now, 'updated_at' => $now];
+        }
+        foreach ($expectedSpouses as [$a, $b]) {
+            $inserts[] = ['member_id' => $a, 'related_member_id' => $b, 'type' => 'spouse', 'created_at' => $now, 'updated_at' => $now];
+        }
+        if ($inserts) {
+            DB::table('family_relationships')->insert($inserts);
+        }
+
+        return $this->treeData();
+    }
+
     /** API: lưu thay đổi từ Balkan FamilyTree (add node/relationship) */
-    public function treeSave(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    public function treeSave(\Illuminate\Http\Request $request): JsonResponse
     {
         $request->validate([
             'action' => ['required', 'in:add_member,add_relation,remove_relation,update_member'],

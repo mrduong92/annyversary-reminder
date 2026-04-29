@@ -16,7 +16,20 @@ class StoreMemorialEventRequest extends FormRequest
         $isSolar = $this->input('date_type') === 'solar';
 
         return [
-            'family_member_id' => ['required', 'integer', 'exists:family_members,id'],
+            'family_member_id' => [
+                'required',
+                'integer',
+                'exists:family_members,id',
+                function ($attribute, $value, $fail) {
+                    // Kiểm tra xem thành viên này đã có ngày giỗ chưa
+                    $existing = \App\Models\MemorialEvent::where('family_member_id', $value)
+                        ->where('user_id', auth()->id())
+                        ->exists();
+                    if ($existing) {
+                        $fail('Thành viên này đã có ngày giỗ. Mỗi người chỉ có 1 ngày giỗ.');
+                    }
+                },
+            ],
             'date_type'    => ['required', 'in:lunar,solar'],
             'lunar_day'    => ['required', 'integer', 'min:1', 'max:' . ($isSolar ? 31 : 30)],
             'lunar_month'  => ['required', 'integer', 'min:1', 'max:12'],

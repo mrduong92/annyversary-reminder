@@ -10,13 +10,14 @@ class SubscriptionService
     /**
      * Giới hạn theo plan.
      * ZNS tính theo NĂM (không phải tháng).
-     * Events/Recipients là giới hạn cho ZNS reminders, không phải tổng số lưu.
+     * Events không giới hạn (được tạo tự động khi gia phả tạo người đã mất).
+     * Chỉ giới hạn số người nhận (recipients) và số tin nhắn ZNS/năm.
      */
     private const LIMITS = [
         'free' => [
-            'zns_events'          => 3,       // max events có nhắc ZNS
+            'zns_events'          => PHP_INT_MAX, // không giới hạn (tạo tự động từ gia phả)
             'recipients'          => 1,
-            'zns_per_year'        => 50,
+            'zns_per_year'        => 50,      // ~15,000đ/năm
             'ai_prayers_per_month'=> 0,        // không có văn khấn AI
             'ai_messages_per_day' => 20,       // chat cơ bản
             'shares'              => 0,        // không share
@@ -26,9 +27,9 @@ class SubscriptionService
             'can_crud_events_ai'  => false,    // không tạo/sửa ngày giỗ qua AI
         ],
         'mini' => [
-            'zns_events'          => 10,
+            'zns_events'          => PHP_INT_MAX, // không giới hạn
             'recipients'          => 3,
-            'zns_per_year'        => 100,
+            'zns_per_year'        => 100,     // ~30,000đ/năm
             'ai_prayers_per_month'=> PHP_INT_MAX,
             'ai_messages_per_day' => 100,
             'shares'              => 0,
@@ -38,9 +39,9 @@ class SubscriptionService
             'can_crud_events_ai'  => true,
         ],
         'premium' => [
-            'zns_events'          => 20,
+            'zns_events'          => PHP_INT_MAX, // không giới hạn
             'recipients'          => 10,
-            'zns_per_year'        => 300,
+            'zns_per_year'        => 300,     // ~90,000đ/năm
             'ai_prayers_per_month'=> PHP_INT_MAX,
             'ai_messages_per_day' => PHP_INT_MAX,
             'shares'              => PHP_INT_MAX,
@@ -132,6 +133,12 @@ class SubscriptionService
         return (bool) $this->limit($user, 'can_crud_events_ai');
     }
 
+    public function canAddEvent(User $user): bool
+    {
+        // Không giới hạn số lượng ngày giỗ (được tạo tự động từ gia phả)
+        return true;
+    }
+
     // ── Increment counters ────────────────────────────────────────
 
     public function incrementZnsCount(User $user): void
@@ -153,7 +160,49 @@ class SubscriptionService
 
     public function znsLimit(User $user): int        { return (int) $this->limit($user, 'zns_per_year'); }
     public function recipientLimit(User $user): int  { return (int) $this->limit($user, 'recipients'); }
-    public function znsEventLimit(User $user): int   { return (int) $this->limit($user, 'zns_events'); }
+    public function znsEventLimit(User $user): int
+    {
+        // Không giới hạn số lượng ngày giỗ
+        return PHP_INT_MAX;
+    }
+
+    public function eventCount(User $user): int
+    {
+        return $user->memorialEvents()->count();
+    }
+
+    public function znsUsed(User $user): int
+    {
+        $this->resetYearlyZnsIfNeeded($user);
+        return $user->zns_count_this_year;
+    }
+
+    public function recipientCount(User $user): int
+    {
+        return $user->recipients()->count();
+    }
+
+    public function prayerCount(User $user): int
+    {
+        $this->resetMonthlyPrayerIfNeeded($user);
+        return $user->ai_prayer_count_this_month;
+    }
+
+    public function agentMessageCount(User $user): int
+    {
+        $this->resetDailyAiIfNeeded($user);
+        return $user->ai_message_count_today;
+    }
+
+    public function shareCount(User $user): int
+    {
+        return $user->familyShares()->where('is_active', true)->count();
+    }
+
+    public function documentCount(User $user): int
+    {
+        return $user->familyDocuments()->count();
+    }
     public function documentLimit(User $user): int
     {
         $v = $this->limit($user, 'documents');
