@@ -116,10 +116,10 @@
         {{-- Plan usage --}}
         @php
             $plan = Auth::user()->fresh()->subscription_plan ?? 'free';
-            $znsLimit = app(SubscriptionService::class)->znsLimit(Auth::user());
-            $znsUsed = app(SubscriptionService::class)->znsUsed(Auth::user());
-            $recipientLimit = app(SubscriptionService::class)->recipientLimit(Auth::user());
-            $recipientCount = app(SubscriptionService::class)->recipientCount(Auth::user());
+            $znsLimit = app(\App\Services\SubscriptionService::class)->znsLimit(Auth::user());
+            $znsUsed = app(\App\Services\SubscriptionService::class)->znsUsed(Auth::user());
+            $recipientLimit = app(\App\Services\SubscriptionService::class)->recipientLimit(Auth::user());
+            $recipientCount = app(\App\Services\SubscriptionService::class)->recipientCount(Auth::user());
         @endphp
         <p class="mt-3 text-xs text-gray-400 text-right">
             ZNS: {{ $znsUsed }}/{{ $znsLimit }} tin/năm · Người nhận: {{ $recipientCount }}/{{ $recipientLimit }} (gói {{ strtoupper($plan) }})

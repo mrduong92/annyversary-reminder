@@ -233,9 +233,11 @@ class FamilyMemberController extends Controller
         abort_unless($genealogy->family_group_id === active_group()->id, 403);
 
         $data = $request->validate([
-            'type'    => ['required', 'in:father,mother,spouse,son,daughter'],
-            'name'    => ['required', 'string', 'max:100'],
-            'pronoun' => ['nullable', 'string', 'max:50'],
+            'type'       => ['required', 'in:father,mother,spouse,son,daughter'],
+            'name'       => ['required', 'string', 'max:100'],
+            'pronoun'    => ['nullable', 'string', 'max:50'],
+            'birth_year' => ['nullable', 'integer', 'min:1800', 'max:2100'],
+            'death_year' => ['nullable', 'integer', 'min:1800', 'max:2100'],
         ]);
 
         $group = active_group();
@@ -253,6 +255,8 @@ class FamilyMemberController extends Controller
             'pronoun'         => filled($data['pronoun'] ?? null) ? $data['pronoun'] : null,
             'gender'          => $gender,
             'user_id'         => Auth::id(),
+            'birth_year'      => $data['birth_year'] ?? null,
+            'death_year'      => $data['death_year'] ?? null,
             'death_date_type' => 'lunar',
         ]);
 

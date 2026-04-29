@@ -20,12 +20,15 @@ class StoreMemorialEventRequest extends FormRequest
                 'required',
                 'integer',
                 'exists:family_members,id',
-                function ($attribute, $value, $fail) {
-                    // Kiểm tra xem thành viên này đã có ngày giỗ chưa
-                    $existing = \App\Models\MemorialEvent::where('family_member_id', $value)
-                        ->where('user_id', auth()->id())
-                        ->exists();
-                    if ($existing) {
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    /** @var \App\Models\FamilyMember|null $member */
+                    $member = \App\Models\FamilyMember::query()->find((int) $value);
+                    if (! $member instanceof \App\Models\FamilyMember || ! $member->death_year) {
+                        $fail('Chỉ tạo ngày giỗ cho thành viên đã mất.');
+                        return;
+                    }
+                    // 1 thành viên chỉ có đúng 1 ngày giỗ (global, không phân biệt user)
+                    if (\App\Models\MemorialEvent::where('family_member_id', $value)->exists()) {
                         $fail('Thành viên này đã có ngày giỗ. Mỗi người chỉ có 1 ngày giỗ.');
                     }
                 },

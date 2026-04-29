@@ -79,8 +79,8 @@
 
         @php
             $plan   = Auth::user()->fresh()->subscription_plan ?? 'free';
-            $limit  = app(SubscriptionService::class)->recipientLimit(Auth::user());
-            $count  = app(SubscriptionService::class)->recipientCount(Auth::user());
+            $limit  = app(\App\Services\SubscriptionService::class)->recipientLimit(Auth::user());
+            $count  = app(\App\Services\SubscriptionService::class)->recipientCount(Auth::user());
         @endphp
         @if ($plan !== 'premium')
         <p class="mt-3 text-xs text-gray-400 text-right">

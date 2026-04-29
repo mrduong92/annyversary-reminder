@@ -134,10 +134,22 @@
                     <input name="name" required placeholder="Nguyễn Văn A"
                            style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
                 </div>
-                <div style="margin-bottom:20px">
+                <div style="margin-bottom:12px">
                     <label style="font-size:12px;font-weight:500;color:#374151;display:block;margin-bottom:4px">Danh xưng</label>
                     <input name="pronoun" placeholder="VD: Cụ ông, Ông, Bà..."
                            style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:20px">
+                    <div style="flex:1">
+                        <label style="font-size:12px;font-weight:500;color:#374151;display:block;margin-bottom:4px">Năm sinh</label>
+                        <input name="birth_year" type="number" min="1800" max="2100" placeholder="VD: 1945"
+                               style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+                    </div>
+                    <div style="flex:1">
+                        <label style="font-size:12px;font-weight:500;color:#374151;display:block;margin-bottom:4px">Năm mất</label>
+                        <input name="death_year" type="number" min="1800" max="2100" placeholder="VD: 2010"
+                               style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+                    </div>
                 </div>
                 <div style="display:flex;gap:8px;justify-content:flex-end">
                     <button type="button" id="gp-add-rel-cancel"
@@ -221,9 +233,11 @@
                     method:  'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
                     body:    JSON.stringify({
-                        type:    fd.get('type'),
-                        name:    fd.get('name').trim(),
-                        pronoun: fd.get('pronoun').trim() || null,
+                        type:       fd.get('type'),
+                        name:       fd.get('name').trim(),
+                        pronoun:    fd.get('pronoun').trim() || null,
+                        birth_year: fd.get('birth_year') ? parseInt(fd.get('birth_year')) : null,
+                        death_year: fd.get('death_year') ? parseInt(fd.get('death_year')) : null,
                     }),
                 });
                 if (! res.ok) throw new Error('HTTP ' + res.status);
