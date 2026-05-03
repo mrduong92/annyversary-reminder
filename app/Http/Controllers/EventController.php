@@ -73,7 +73,13 @@ class EventController extends Controller
     {
         $this->authorizeOwner($event);
         $event = $this->withDaysUntil($event);
-        return view('events.show', compact('event'));
+
+        $allRecipients = active_group()->recipients()->orderBy('name')->get();
+        $attached      = $event->recipients()->orderBy('name')->get();
+        $attachedIds   = $attached->pluck('id');
+        $available     = $allRecipients->whereNotIn('id', $attachedIds);
+
+        return view('events.show', compact('event', 'attached', 'available'));
     }
 
     public function edit(MemorialEvent $event): View

@@ -9,6 +9,7 @@ use App\Http\Controllers\FamilyMemberController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PrayerController;
+use App\Http\Controllers\PrintOrderController;
 use App\Http\Controllers\RecipientController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShareController;
@@ -73,6 +74,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('genealogy-data', [FamilyMemberController::class, 'treeData'])->name('genealogy.data');
     Route::post('genealogy-save', [FamilyMemberController::class, 'treeSave'])->name('genealogy.save');
     Route::post('genealogy/{genealogy}/add-relative', [FamilyMemberController::class, 'addRelative'])->name('genealogy.add-relative');
+
+    // Đặt in gia phả (Print Orders)
+    Route::get('print-orders', [PrintOrderController::class, 'index'])->name('print-orders.index');
+    Route::post('print-orders/order', [PrintOrderController::class, 'order'])->name('print-orders.order');
+    Route::get('print-orders/{order}', [PrintOrderController::class, 'show'])->name('print-orders.show');
+    Route::post('print-orders/{order}/track', [PrintOrderController::class, 'track'])->name('print-orders.track');
 
     // Share — toggle link của group đang active (JSON API, gọi từ chat UI)
     Route::post('share/enable', [ShareController::class, 'enable'])->name('share.enable');

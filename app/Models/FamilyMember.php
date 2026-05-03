@@ -12,6 +12,7 @@ class FamilyMember extends Model
     protected $fillable = [
         'family_group_id', 'user_id', 'name', 'pronoun', 'relationship', 'gender',
         'birth_year', 'death_year', 'death_day', 'death_month', 'death_date_type', 'notes',
+        'is_alive',
     ];
 
     protected function casts(): array
@@ -21,13 +22,14 @@ class FamilyMember extends Model
             'death_year'  => 'integer',
             'death_day'   => 'integer',
             'death_month' => 'integer',
+            'is_alive'    => 'boolean',
         ];
     }
 
     protected static function booted(): void
     {
         static::saved(function (FamilyMember $member) {
-            if ($member->death_year !== null && $member->death_day && $member->death_month) {
+            if (!$member->is_alive && $member->death_day && $member->death_month) {
                 $lunar = app(\App\Services\LunarCalendarService::class);
                 $type  = $member->death_date_type ?? 'lunar';
                 
@@ -54,7 +56,7 @@ class FamilyMember extends Model
                         'is_active'       => true,
                     ]);
                 }
-            } elseif ($member->death_year === null) {
+            } elseif ($member->is_alive) {
                 // Nếu được cập nhật thành "Còn sống", tự động xóa các ngày giỗ liên quan
                 $member->memorialEvents()->delete();
             }
@@ -119,7 +121,7 @@ class FamilyMember extends Model
         return static::whereIn('id', $ids)->get();
     }
 
-    public function isAlive(): bool   { return $this->death_year === null; }
+    public function isAlive(): bool   { return $this->is_alive; }
     public function genderIcon(): string
     {
         return match ($this->gender) { 'male' => '♂', 'female' => '♀', default => '' };
@@ -127,7 +129,9 @@ class FamilyMember extends Model
     public function lifespan(): string
     {
         if ($this->birth_year && $this->death_year) return "{$this->birth_year}–{$this->death_year}";
+        if ($this->birth_year && !$this->is_alive) return "sinh {$this->birth_year} (Đã mất)";
         if ($this->birth_year) return "sinh {$this->birth_year}";
+        if (!$this->is_alive) return "(Đã mất)";
         return '';
     }
 }

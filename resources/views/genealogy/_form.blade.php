@@ -5,8 +5,11 @@
 --}}
 
 @php
-    $isDeceased = old('death_year', $member?->death_year) !== null
-        && old('death_year', $member?->death_year) !== '';
+    if (old('is_alive') !== null) {
+        $isDeceased = old('is_alive') == 0;
+    } else {
+        $isDeceased = $member ? !$member->is_alive : false;
+    }
     $initialStatus = $isDeceased ? 'dead' : 'alive';
 @endphp
 
@@ -15,6 +18,9 @@
 >
     @csrf
     @if ($method === 'PUT') @method('PUT') @endif
+    
+    <input type="radio" name="is_alive" value="1" class="hidden" :checked="status === 'alive'">
+    <input type="radio" name="is_alive" value="0" class="hidden" :checked="status === 'dead'">
 
     {{-- Tên + Danh xưng --}}
     <div class="grid sm:grid-cols-3 gap-4">

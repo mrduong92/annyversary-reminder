@@ -2,7 +2,12 @@
 
 ## Mục tiêu dự án
 
-Web app nhắc lịch giỗ tự động cho người Việt Nam. Con cái (30–45 tuổi) setup trên web, hệ thống tự động gửi ZNS Zalo đến bố mẹ, ông bà đúng ngày. Có tính năng AI soạn văn khấn. Freemium — giới hạn tin nhắn miễn phí, thu phí gói không giới hạn.
+Nền tảng số hóa di sản gia đình người Việt. Gồm 3 nhóm tính năng chính:
+1. **Nhắc lịch giỗ** — Con cái (30–45 tuổi) setup trên web, ZNS tự động đến bố mẹ/ông bà đúng ngày
+2. **AI Agent gia đình** — Chat tự nhiên: soạn văn khấn, hỏi lịch giỗ, quản lý sự kiện, RAG từ tài liệu dòng họ
+3. **Gia phả số** — Tạo cây gia phả, export PDF vector chuẩn in, đặt in khổ lớn ship tận nhà
+
+Revenue: Subscription (Free/Mini/Premium) + Print-on-demand (thu tiền theo lần)
 
 ---
 
@@ -18,6 +23,8 @@ Web app nhắc lịch giỗ tự động cho người Việt Nam. Con cái (30�
 | AI | Google Gemini 2.0 Flash-Lite API (AI Agent) |
 | Auth | Laravel Breeze + OTP số điện thoại |
 | SMS OTP | SpeedSMS API (trả phí ~200đ/tin, free tier test) |
+| PDF Export | spatie/browsershot (headless Chrome → PDF từ SVG) |
+| Photo Restore | Replicate API (GFPGAN/CodeFormer — phục chế ảnh cũ) |
 | Local dev | Docker Compose |
 | Deploy | VPS Ubuntu (sau này) |
 
@@ -37,6 +44,9 @@ app/
       SubscriptionController.php # Freemium / upgrade
       ShareController.php        # Chia sẻ chatbot với thành viên gia đình
       ExportController.php       # Export văn khấn, lịch giỗ
+      FamilyTreeController.php   # Quản lý gia phả (CRUD members, branches)
+      PrintOrderController.php   # Đặt in gia phả — POD flow
+      GuestController.php        # Guest flow: tạo gia phả không cần đăng ký
   Models/
     User.php
     MemorialEvent.php            # Ngày giỗ
@@ -46,6 +56,12 @@ app/
     FamilyDocument.php           # Tài liệu/nhật ký gia đình upload lên
     AgentMessage.php             # Lịch sử chat với AI Agent
     FamilyShare.php              # Share chatbot cho thành viên gia đình
+    FamilyClan.php               # Tộc (họ lớn)
+    FamilyBranch.php             # Chi / Cành / Phái (self-referencing)
+    FamilyMember.php             # Thành viên trong gia phả
+    FamilyRelationship.php       # Quan hệ giữa các thành viên
+    PrintOrder.php               # Đơn đặt in
+    GuestSession.php             # Session tạm cho guest chưa đăng ký
     Subscription.php             # Gói dịch vụ
   Services/
     LunarCalendarService.php     # Thuật toán âm lịch
@@ -62,6 +78,10 @@ app/
         FamilyMemoryTool.php     # Tool: trả lời từ tài liệu/nhật ký gia đình (RAG)
     SmsOtpService.php            # Gửi OTP qua SpeedSMS
     ExportService.php            # Export PDF văn khấn, Excel/TXT lịch giỗ
+    FamilyTreeSvgService.php     # Generate SVG gia phả từ data động
+    FamilyTreePdfService.php     # Convert SVG → PDF A0 chuẩn in (Browsershot)
+    PrintOrderService.php        # Xử lý đơn in: tạo, gửi xưởng, track
+    PhotoRestoreService.php      # Gọi Replicate API phục chế ảnh cũ
   Jobs/
     SendZnsReminderJob.php        # Job gửi ZNS (queue)
   Console/
@@ -74,6 +94,9 @@ resources/
     events/
     prayers/
     agent/                       # Chat interface AI Agent
+    genealogy/                   # Quản lý gia phả
+    print-orders/                # Đặt in và track đơn hàng
+    guest/                       # Guest flow (không cần login)
     share/                       # Trang shared chatbot (không cần login)
     export/                      # Preview trước khi export
     subscription/
@@ -92,7 +115,7 @@ routes/
 ### users
 ```
 id, name, email, password, phone,
-subscription_plan (enum: free|basic|unlimited),
+subscription_plan (enum: free|mini|premium),
 subscription_expires_at,
 zns_count_this_month (int, reset mỗi tháng),
 timestamps
@@ -140,24 +163,53 @@ timestamps
 
 ---
 
-## Freemium Rules
+## Subscription Plans
 
+### FREE — Cá nhân (0đ)
 ```
-FREE tier:
-- Tối đa 3 memorial_events
-- Tối đa 2 recipients
-- Tối đa 5 ZNS/tháng (reset ngày 1 hàng tháng)
-- AI văn khấn: 3 lần/tháng
+- Lịch giỗ: tối đa 5 sự kiện
+- ZNS: 5 tin/tháng, 2 số điện thoại nhận
+- AI Agent: 10 tin/ngày, không RAG
+- Gia phả: chỉ xem (không tạo/sửa)
+- Export: PDF A4 có watermark (miễn phí — lead magnet viral)
+- Share chatbot: không có
+```
 
-BASIC tier (49k/năm):
-- Tối đa 10 memorial_events
-- Tối đa 10 recipients
-- Tối đa 30 ZNS/tháng
-- AI văn khấn: không giới hạn
+### MINI — Gia đình (99k/năm)
+```
+- Lịch giỗ: không giới hạn sự kiện
+- ZNS: 30 tin/tháng, 10 số điện thoại nhận
+- AI Agent: 50 tin/ngày, RAG 3 tài liệu
+- Gia phả: tạo/sửa tối đa 50 thành viên, không có chi/cành
+- Export: PDF A4 không watermark + Excel lịch giỗ
+- Share chatbot: 1 link
+```
 
-UNLIMITED tier (149k/năm):
-- Không giới hạn tất cả
-- Dành cho trưởng họ / dòng họ
+### PREMIUM — Dòng họ (299k/năm)
+```
+- Lịch giỗ: không giới hạn
+- ZNS: không giới hạn
+- AI Agent: không giới hạn, RAG không giới hạn
+- Gia phả: không giới hạn thành viên, quản lý Chi/Cành/Tộc
+- Export: tất cả formats
+- Share chatbot: 10 links
+- Hỏi lịch sử dòng họ qua AI
+```
+
+### Thu tiền theo lần — Print-on-Demand (mọi plan đều dùng được)
+```
+PDF A0 cao cấp (300dpi, không watermark, tự in): 49k/lần
+  → Margin ~100%, cost gần 0
+  → File A0 vector = master size, xưởng in tự scale xuống A1/A2
+
+In A1 + ship toàn quốc:                         799k/lần
+In A0 + ship toàn quốc:                         1.299k/lần
+In A0 + đóng khung kính + ship:                 2.499k/lần
+  → Manual fulfillment giai đoạn đầu
+  → Margin ~45-50% sau chi phí in + ship
+
+Phục chế ảnh cũ bằng AI:                        49k/ảnh
+In ảnh thờ (sau phục chế) + ship:               299k/ảnh
 ```
 
 Kiểm tra giới hạn qua `SubscriptionService::canSendZns(User $user): bool`
@@ -191,11 +243,11 @@ access_count (int),      -- Đếm số lần truy cập
 timestamps
 ```
 
-### Freemium cho Share
+### Giới hạn theo plan
 ```
-FREE:     1 share link, không có RAG trong share link
-BASIC:    3 share links, có RAG
-UNLIMITED: không giới hạn
+FREE:    Không có share link
+MINI:    1 share link, có RAG
+PREMIUM: 10 share links, có RAG
 ```
 
 ### Lưu ý bảo mật
@@ -281,11 +333,192 @@ LỊCH GIỖ GIA ĐÌNH — NĂM 2025
    ...
 ```
 
-### Freemium cho Export
+### Giới hạn theo plan
 ```
-FREE:     Chỉ export TXT
-BASIC:    Export PDF văn khấn + Excel lịch giỗ
-UNLIMITED: Tất cả + export gia phả (phase 2)
+FREE:    Chỉ export TXT lịch giỗ
+MINI:    Export PDF văn khấn + Excel lịch giỗ
+PREMIUM: Tất cả + export gia phả PDF A4 không watermark
+```
+
+---
+
+## Gia Phả — Family Tree
+
+### Cấu trúc phân cấp Việt Nam
+```
+Tộc (họ lớn — VD: Tộc Nguyễn Hữu)
+  └── Chi (nhánh lớn — Chi trưởng, Chi thứ)
+        └── Cành (nhóm gia đình gần)
+              └── Hộ (1 gia đình hạt nhân)
+                    └── Cá nhân
+```
+
+### Database Schema
+
+```sql
+-- Tộc
+family_clans:
+  id, user_id, name, founding_year, homeland, notes, logo_image, timestamps
+
+-- Chi/Cành (self-referencing tree)
+family_branches:
+  id, clan_id, parent_branch_id (nullable),
+  name, branch_type (enum: chi|canh|phai),
+  generation_from_ancestor, timestamps
+
+-- Thành viên
+family_members:
+  id, clan_id, branch_id,
+  name, gender (enum: male|female),
+  birth_date_lunar, birth_date_solar,
+  death_date_lunar, death_date_solar,
+  generation_number,
+  title,           -- Cụ, Ông, Bà, Liệt sĩ...
+  birthplace, burial_place,
+  biography (text),
+  portrait_image,
+  is_alive (bool), notes, timestamps
+
+-- Quan hệ (handle đa thê, con nuôi)
+family_relationships:
+  id, member_id, related_member_id,
+  relationship_type (enum: spouse|child|adopted_child|parent|sibling),
+  marriage_date, marriage_order,  -- vợ 1, vợ 2...
+  notes, timestamps
+```
+
+### SVG Template Engine
+
+**Nguyên tắc:** Generate SVG động từ data, không dùng template tĩnh.
+
+```php
+// FamilyTreeSvgService — render SVG từ data
+class FamilyTreeSvgService {
+    public function render(FamilyClan $clan, string $template = 'traditional'): string
+    // Templates: traditional (đỏ/vàng), modern (trắng/xám), elegant (tím/vàng)
+    // Mỗi template là 1 bộ CSS constants: màu nền, màu viền, font, spacing
+    // Layout algorithm: tính tọa độ x,y từ cấu trúc cây, tránh overlap
+}
+```
+
+**Template constants (ví dụ template truyền thống):**
+```php
+'traditional' => [
+    'bg'           => '#1a0a00',
+    'border'       => '#c9a84c',
+    'text_primary' => '#f5d376',
+    'text_muted'   => '#c9a84c',
+    'male_stroke'  => '#4a7fb5',
+    'female_stroke'=> '#c45c8a',
+    'connector'    => '#c9a84c',
+]
+```
+
+### PDF Export Pipeline
+
+```
+MySQL data
+    ↓
+FamilyTreeSvgService::render() → SVG string
+    ↓
+Blade view: resources/views/exports/family-tree.blade.php
+    (chỉ chứa SVG thuần, không có HTML wrapper)
+    ↓
+FamilyTreePdfService dùng spatie/browsershot:
+    Browsershot::url(route('export.family-tree', $clanId))
+        ->paperSize(1189, 841, 'mm')  // A0 landscape
+        ->deviceScaleFactor(2)        // 300dpi equivalent
+        ->save(storage_path('exports/gia-pha-{id}.pdf'))
+    ↓
+File PDF vector A0 (~2-5MB) — chuẩn gửi xưởng in
+```
+
+**Tại sao PDF từ SVG tốt hơn JPG:**
+- SVG là vector — text và đường kẻ sắc nét tuyệt đối dù in A0
+- JPG bị artifact nén, text bị răng cưa khi in khổ lớn
+- File JPG 10MB thực tế vẫn mờ vì JPEG compression, không phải vì thiếu pixel
+
+**Output format duy nhất: PDF A0**
+- A0 (841×1189mm) là master size
+- Xưởng in tự scale xuống A1/A2 nếu cần
+- Không cần generate nhiều size — 1 file đủ dùng cho mọi máy in
+
+**Spec PDF gửi xưởng:**
+```
+✅ Color space: CMYK
+✅ Resolution: 150+ DPI ở kích thước thật
+✅ Bleed: 3-5mm mỗi cạnh
+✅ Font: embedded trong PDF
+✅ Vector text: không rasterize
+✅ Format: PDF/X-3 hoặc PDF/X-4
+```
+
+### Guest Flow — Tạo gia phả không cần đăng ký
+
+```
+Guest vào /family-tree/create (không login)
+    ↓
+Nhập data gia phả (lưu vào guest_sessions với session_id)
+    ↓
+Preview SVG realtime
+    ↓
+Bấm "Tải PDF A0" → Modal thanh toán (49k)
+    ↓
+Thanh toán MoMo/VNPay/chuyển khoản
+    ↓
+Download PDF ngay lập tức
+    ↓
+Prompt: "Tạo tài khoản để lưu và cập nhật gia phả sau"
+```
+
+Guest data lưu vào `guest_sessions` với TTL 7 ngày, tự xóa nếu không convert thành account.
+
+### Print-on-Demand Flow
+
+```
+User (mọi plan) bấm "Đặt in"
+    ↓
+Chọn gói: A1+ship / A0+ship / A0+khung+ship
+    ↓
+Nhập địa chỉ giao hàng
+    ↓
+Thanh toán 100% trước (MoMo/VNPay)
+    ↓
+PrintOrderService tạo order, gửi ZNS confirm
+    ↓
+[MANUAL] Founder nhận email/ZNS → gửi PDF cho xưởng in
+    ↓
+[MANUAL] Track ship, cập nhật status trong app
+    ↓
+User nhận ZNS update: "Đơn hàng đang giao"
+    ↓
+Đánh giá sau khi nhận hàng
+```
+
+**Tại sao thu 100% trước:**
+- Chuẩn của ngành in ấn Việt Nam — mọi xưởng đều làm vậy
+- User tin tưởng qua: preview rõ ràng + chính sách hoàn tiền nếu in lỗi + ZNS tracking
+
+**Build trust với brand mới:**
+- Show preview PDF chính xác trước khi thanh toán
+- Chính sách rõ: in lỗi/hỏng → in lại miễn phí hoặc hoàn 100%
+- ZNS cập nhật trạng thái đơn hàng realtime
+- 10 đơn đầu: chụp ảnh sản phẩm thực tế, đăng Facebook/Zalo làm social proof
+
+### Photo Restoration (Phase 2)
+
+```
+User upload ảnh ông bà cũ (mờ, ố vàng, rách)
+    ↓
+PhotoRestoreService gọi Replicate API
+    (model: GFPGAN hoặc CodeFormer)
+    ↓
+Preview before/after
+    ↓
+Download ảnh đã restore: 49k
+Đặt in ảnh thờ + ship:   299k
+    ↓
+Tích hợp: gắn ảnh đã restore vào profile trong gia phả
 ```
 
 ---
@@ -409,11 +642,11 @@ family_documents: id, user_id, filename, content_type, status (processing|ready)
 document_chunks: id, document_id, chunk_index, content, embedding (json/vector), timestamps
 ```
 
-### Freemium cho AI Agent
+### Giới hạn theo plan
 ```
-FREE:  10 tin nhắn/ngày, không có RAG, không upload tài liệu
-BASIC: 50 tin nhắn/ngày, upload tối đa 3 tài liệu
-UNLIMITED: không giới hạn
+FREE:    10 tin nhắn/ngày, không có RAG, không upload tài liệu
+MINI:    50 tin nhắn/ngày, upload tối đa 3 tài liệu, RAG enabled
+PREMIUM: Không giới hạn, RAG không giới hạn
 ```
 
 ### Lưu ý kỹ thuật
@@ -500,6 +733,16 @@ GEMINI_EMBEDDING_MODEL=text-embedding-004
 SPEEDSMS_ACCESS_TOKEN=
 SPEEDSMS_SENDER=VTDD
 
+# Replicate (phục chế ảnh — Phase 2)
+REPLICATE_API_TOKEN=
+
+# Print orders
+PRINT_ORDER_EMAIL=         # Email nhận thông báo đơn in mới
+PRINT_NOTIFY_PHONE=        # Số nhận ZNS khi có đơn in mới
+
+# Guest session TTL (ngày)
+GUEST_SESSION_TTL=7
+
 # Scheduler — nhắc trước bao nhiêu ngày
 REMINDER_DAYS_BEFORE=1,3
 ```
@@ -511,7 +754,7 @@ REMINDER_DAYS_BEFORE=1,3
 - **Ngôn ngữ code:** English (tên biến, method, class)
 - **Comment & commit message:** Tiếng Việt OK
 - **Service layer bắt buộc** — Controller không chứa business logic
-- **Mỗi external API** (Zalo, Claude) phải có Service class riêng, dễ mock khi test
+- **Mỗi external API** (Zalo, Gemini, Replicate) phải có Service class riêng, dễ mock khi test
 - **Không dùng facade trong Service** — inject qua constructor
 - **Validation** dùng Form Request class, không validate trong Controller
 - **Error từ ZNS** phải log đầy đủ vào `notification_logs`, không silent fail
@@ -520,16 +763,17 @@ REMINDER_DAYS_BEFORE=1,3
 
 ## Non-goals (MVP)
 
-- Không làm gia phả
 - Không làm cáo phó
 - Không làm affiliate / shop
 - Không làm native app
 - Không làm multi-language
-- Không tích hợp payment gateway (thu phí manual giai đoạn đầu)
+- Không tích hợp payment gateway tự động (manual fulfillment giai đoạn đầu — chuyển khoản/MoMo thủ công)
 - Không làm admin panel (dùng Tinker nếu cần)
 - Share link không cần tạo tài khoản riêng — anonymous access chỉ chat
 - Không làm voice input cho AI Agent
 - RAG MVP dùng MySQL full-text trước, không dùng vector DB phức tạp
+- Photo Restoration là Phase 2 — chưa implement trong MVP
+- POD fulfillment hoàn toàn tự động là Phase 2 (hiện tại manual)
 
 ---
 
@@ -572,8 +816,10 @@ php artisan queue:monitor
 5. Install thư viện: `composer require laravel/breeze` + lunar calendar package
 6. `php artisan breeze:install blade`
    `composer require spatie/laravel-one-time-passwords`
-   `composer require barryvdh/laravel-dompdf`
+   `composer require spatie/browsershot`      # SVG → PDF
+   `composer require barryvdh/laravel-dompdf` # PDF văn khấn đơn giản
    `composer require maatwebsite/excel`
+   `npm install puppeteer`                    # Browsershot dependency
 7. Tạo migrations theo schema trên
 8. Implement `LunarCalendarService` + viết test thủ công
 9. Implement `ZnsService` (mock trước, test sau khi có credentials)
@@ -581,5 +827,5 @@ php artisan queue:monitor
 11. Implement từng Agent Tool theo thứ tự: CalendarQueryTool → EventTool → PrayerTool → FamilyMemoryTool
 12. Build `AgentService` orchestrator + streaming SSE
 13. Build Controllers + Views theo feature list
-12. Setup Scheduler + Queue
-13. Test end-to-end local trước khi deploy
+14. Setup Scheduler + Queue
+15. Test end-to-end local trước khi deploy

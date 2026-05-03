@@ -51,6 +51,7 @@ class FamilyMemberController extends Controller
             'death_day'       => ['nullable', 'integer', 'min:1', 'max:30'],
             'death_month'     => ['nullable', 'integer', 'min:1', 'max:12'],
             'death_date_type' => ['nullable', 'in:lunar,solar'],
+            'is_alive'        => ['required', 'boolean'],
             'notes'           => ['nullable', 'string', 'max:500'],
             'couple_id'       => ['nullable', 'string'],  // "c:1:2" hoặc "s:5"
             'spouse_id'       => ['nullable', 'integer', 'exists:family_members,id'],
@@ -115,6 +116,7 @@ class FamilyMemberController extends Controller
             'death_day'       => ['nullable', 'integer', 'min:1', 'max:30'],
             'death_month'     => ['nullable', 'integer', 'min:1', 'max:12'],
             'death_date_type' => ['nullable', 'in:lunar,solar'],
+            'is_alive'        => ['required', 'boolean'],
             'notes'           => ['nullable', 'string', 'max:500'],
             'couple_id'       => ['nullable', 'string'],
             'spouse_id'       => ['nullable', 'integer', 'exists:family_members,id'],
@@ -257,6 +259,7 @@ class FamilyMemberController extends Controller
             'user_id'         => Auth::id(),
             'birth_year'      => $data['birth_year'] ?? null,
             'death_year'      => $data['death_year'] ?? null,
+            'is_alive'        => empty($data['death_year']),
             'death_date_type' => 'lunar',
         ]);
 
@@ -341,6 +344,7 @@ class FamilyMemberController extends Controller
                 'gender'     => ($d['gender'] ?? 'M') === 'F' ? 'female' : 'male',
                 'birth_year' => filled($d['birthday']   ?? null) ? (int) $d['birthday']   : null,
                 'death_year' => filled($d['death_year'] ?? null) ? (int) $d['death_year'] : null,
+                'is_alive'   => !filled($d['death_year'] ?? null),
             ];
 
             $nodeId = (string) $node['id'];
@@ -443,6 +447,7 @@ class FamilyMemberController extends Controller
             'gender'    => $request->input('gender', 'unknown'),
             'birth_year' => $request->input('birth_year'),
             'death_year' => $request->input('death_year'),
+            'is_alive'   => empty($request->input('death_year')),
         ]);
 
         // Gắn quan hệ nếu có
@@ -487,7 +492,11 @@ class FamilyMemberController extends Controller
     {
         $member = FamilyMember::where('family_group_id', active_group()->id)->find($request->input('id'));
         if ($member) {
-            $member->update($request->only(['name', 'gender', 'birth_year', 'death_year']));
+            $data = $request->only(['name', 'pronoun', 'gender', 'birth_year', 'death_year']);
+            if (isset($data['death_year'])) {
+                $data['is_alive'] = empty($data['death_year']);
+            }
+            $member->update($data);
         }
     }
 
