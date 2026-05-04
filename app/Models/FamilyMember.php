@@ -28,6 +28,17 @@ class FamilyMember extends Model
 
     protected static function booted(): void
     {
+        // Mỗi khi thành viên thay đổi → đánh dấu cây đã cập nhật → invalidate download unlock cũ
+        static::saved(function (FamilyMember $member) {
+            FamilyGroup::where('id', $member->family_group_id)
+                ->update(['tree_updated_at' => now()]);
+        });
+
+        static::deleted(function (FamilyMember $member) {
+            FamilyGroup::where('id', $member->family_group_id)
+                ->update(['tree_updated_at' => now()]);
+        });
+
         static::saved(function (FamilyMember $member) {
             if (!$member->is_alive && $member->death_day && $member->death_month) {
                 $lunar = app(\App\Services\LunarCalendarService::class);

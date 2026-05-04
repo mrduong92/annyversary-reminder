@@ -2,63 +2,68 @@
 
 namespace App\Services;
 
-use App\Models\FamilyMember;
-use App\Models\PrintTemplate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class FamilyTreePdfService
 {
     /**
-     * Generate PDF từ SVG gia phả
+     * Generate PDF từ data gia phả, lưu vào public disk.
+     * Trả về đường dẫn relative trên public disk (vd: download-unlocks/gia-pha-xxx.pdf).
      */
-    public function generate($members, $template): string
+    public function generate($members, $template, string $folder = 'download-unlocks'): string
     {
-        // Generate SVG trước
         $svgService = app(FamilyTreeSvgService::class);
-        $svgUrl = $svgService->generate($members, $template);
+        $svgUrl     = $svgService->generate($members, $template);
 
-        // Extract filename and get content from Storage
-        $filename = basename($svgUrl);
-        $svgContent = Storage::disk('public')->get('family-trees/' . $filename);
+        $svgFilename = basename(parse_url($svgUrl, PHP_URL_PATH));
+        $svgContent  = Storage::disk('public')->get('family-trees/' . $svgFilename);
 
-        // Convert SVG sang PDF
-        $pdfPath = $this->convertSvgToPdf($svgContent, $template);
+        $relativePath = $this->convertSvgToPdf($svgContent, $folder);
 
-        return Storage::disk('public')->url('print-orders/' . basename($pdfPath));
+        return $relativePath;
     }
 
     /**
-     * Convert SVG sang PDF
+     * Trả về URL công khai từ relative path trên public disk.
      */
-    private function convertSvgToPdf(string $svgContent, $template): string
+    public function url(string $relativePath): string
     {
-        // Ensure temp directory exists
-        if (!is_dir(storage_path('app/temp'))) {
-            mkdir(storage_path('app/temp'), 0755, true);
+        return Storage::disk('public')->url($relativePath);
+    }
+
+    private function convertSvgToPdf(string $svgContent, string $folder): string
+    {
+        $tempDir = storage_path('app/temp');
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
         }
 
-        // Lưu SVG tạm
-        $svgPath = storage_path('app/temp/family-tree-' . time() . '.svg');
-        file_put_contents($svgPath, $svgContent);
+        $uid      = Str::random(12);
+        $svgTemp  = $tempDir . '/gia-pha-' . $uid . '.svg';
+        $pdfTemp  = $tempDir . '/gia-pha-' . $uid . '.pdf';
 
-        // Convert sang PDF
-        $pdfPath = storage_path('app/temp/family-tree-' . time() . '.pdf');
+        file_put_contents($svgTemp, $svgContent);
 
-        // Sử dụng browsershot để convert SVG sang PDF
         $command = sprintf(
-            'chromium --headless --disable-gpu --print-to-pdf --output=%s %s',
-            escapeshellarg($pdfPath),
-            escapeshellarg($svgPath)
+            'chromium --headless --disable-gpu --print-to-pdf=%s %s 2>&1',
+            escapeshellarg($pdfTemp),
+            escapeshellarg($svgTemp),
         );
+        exec($command, $output, $exitCode);
 
-        exec($command, $output, $returnCode);
+        // Dọn SVG tạm bất kể kết quả
+        @unlink($svgTemp);
 
-        if ($returnCode !== 0) {
-            $errorOutput = is_array($output) ? implode("\n", $output) : $output;
-            throw new \Exception('Không thể convert SVG sang PDF: ' . $errorOutput);
+        if ($exitCode !== 0 || ! file_exists($pdfTemp)) {
+            throw new \RuntimeException('Không thể tạo PDF: ' . implode("\n", $output));
         }
 
-        return $pdfPath;
+        // Chuyển PDF vào public storage
+        $relativePath = $folder . '/gia-pha-' . $uid . '.pdf';
+        Storage::disk('public')->put($relativePath, file_get_contents($pdfTemp));
+        @unlink($pdfTemp);
+
+        return $relativePath;
     }
 }

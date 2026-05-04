@@ -75,11 +75,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('genealogy-save', [FamilyMemberController::class, 'treeSave'])->name('genealogy.save');
     Route::post('genealogy/{genealogy}/add-relative', [FamilyMemberController::class, 'addRelative'])->name('genealogy.add-relative');
 
-    // Đặt in gia phả (Print Orders)
+    // Download gia phả (chọn template → unlock → download)
     Route::get('print-orders', [PrintOrderController::class, 'index'])->name('print-orders.index');
-    Route::post('print-orders/order', [PrintOrderController::class, 'order'])->name('print-orders.order');
+    Route::post('print-orders/unlock', [PrintOrderController::class, 'confirmUnlock'])->name('print-orders.confirm-unlock');
+    Route::get('print-orders/download', [PrintOrderController::class, 'download'])->name('print-orders.download');
     Route::get('print-orders/{order}', [PrintOrderController::class, 'show'])->name('print-orders.show');
-    Route::post('print-orders/{order}/track', [PrintOrderController::class, 'track'])->name('print-orders.track');
 
     // Share — toggle link của group đang active (JSON API, gọi từ chat UI)
     Route::post('share/enable', [ShareController::class, 'enable'])->name('share.enable');

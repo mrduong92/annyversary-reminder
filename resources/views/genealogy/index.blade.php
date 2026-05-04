@@ -403,21 +403,25 @@
             const validNodes = rawNodes.filter(n => n && n.id);
             window.treeNodes = validNodes;
             const validIds   = new Set(validNodes.map(n => String(n.id)));
+            const sortByBirthThenId = (a, b) => {
+                const ay = Number.isFinite(Number(a.birth_year)) ? Number(a.birth_year) : Number.MAX_SAFE_INTEGER;
+                const by = Number.isFinite(Number(b.birth_year)) ? Number(b.birth_year) : Number.MAX_SAFE_INTEGER;
+                if (ay !== by) return ay - by;
+                return String(a.id).localeCompare(String(b.id), 'en', { numeric: true });
+            };
 
             const data = validNodes.map(n => {
                 const nId      = String(n.id);
                 const spouseIds = (n.pids || []).map(String).filter(id => validIds.has(id));
 
-                // Tính children theo 2 chiều:
-                // - child trực tiếp tham chiếu n là cha/mẹ
-                // - child của spouse của n (để 2 vợ chồng có cùng list children)
+                // Chỉ lấy con trực tiếp theo quan hệ cha/mẹ để tránh duplicate nhánh khi append.
                 const children = validNodes
                     .filter(c => {
                         const cFid = c.fid ? String(c.fid) : null;
                         const cMid = c.mid ? String(c.mid) : null;
-                        if (cFid === nId || cMid === nId) return true;
-                        return spouseIds.some(sid => cFid === sid || cMid === sid);
+                        return cFid === nId || cMid === nId;
                     })
+                    .sort(sortByBirthThenId)
                     .map(c => String(c.id));
 
                 return {

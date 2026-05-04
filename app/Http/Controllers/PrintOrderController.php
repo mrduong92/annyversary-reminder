@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DownloadUnlock;
 use App\Models\FamilyGroup;
-use App\Models\FamilyMember;
-use App\Services\FamilyTreeSvgService;
 use App\Services\FamilyTreePdfService;
+use App\Services\FamilyTreeSvgService;
 use App\Services\PrintOrderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class PrintOrderController extends Controller
@@ -20,101 +20,122 @@ class PrintOrderController extends Controller
         private readonly PrintOrderService $printOrderService,
     ) {}
 
+    /**
+     * Trang chọn template + preview SVG + nút unlock/download/đặt in.
+     */
     public function index(Request $request)
     {
-        $templates = $this->printOrderService->getAvailableTemplates();
-        
+        $templates   = $this->printOrderService->getAvailableTemplates();
+        $familyGroup = FamilyGroup::where('user_id', Auth::id())->firstOrFail();
+
         $selectedTemplate = null;
-        $svg = null;
-        $familyGroup = FamilyGroup::where('user_id', Auth::id())->firstOrFail();
-        
-        if ($request->has('template_id')) {
+        $svg              = null;
+        $isUnlocked       = false;
+        $validUnlock      = null;
+
+        if ($request->filled('template_id')) {
             $selectedTemplate = $this->printOrderService->getTemplate($request->template_id);
-            $members = $familyGroup->familyMembers;
-            $svg = $this->svgService->generate($members, $selectedTemplate);
-        }
 
-        return view('print-orders.index', compact('templates', 'selectedTemplate', 'svg', 'familyGroup'));
-    }
+            if ($selectedTemplate) {
+                $members = $familyGroup->familyMembers;
+                $svg     = $this->svgService->generate($members, $selectedTemplate);
 
-    public function order(Request $request)
-    {
-        $request->validate([
-            'template_id' => ['required', 'string', Rule::in(array_keys(config('print_templates', [])))],
-            'order_type' => ['required', 'string'],
-            'shipping_name' => ['required_if:order_type,!=,digital', 'nullable', 'string', 'max:100'],
-            'shipping_phone' => ['required_if:order_type,!=,digital', 'nullable', 'string', 'max:20'],
-            'shipping_address' => ['required_if:order_type,!=,digital', 'nullable', 'string', 'max:500'],
-        ]);
-
-        $template = $this->printOrderService->getTemplate($request->template_id);
-        
-        // Auto-load all members
-        $familyGroup = FamilyGroup::where('user_id', Auth::id())->firstOrFail();
-        $members = $familyGroup->familyMembers;
-        $memberIds = $members->pluck('id')->toArray();
-
-        // Generate PDF
-        $pdfPath = $this->pdfService->generate($members, $template);
-
-        // Calculate price based on order_type
-        $printOptions = config('print_options');
-        $price = 0;
-        if ($request->order_type === 'digital') {
-            $price = $printOptions['digital']['price'] ?? 49000;
-        } else {
-            foreach ($printOptions['physical_options'] as $option) {
-                if ($option['id'] === $request->order_type) {
-                    $price = $option['price'];
-                    break;
-                }
+                $validUnlock = $familyGroup->validUnlock(Auth::id());
+                $isUnlocked  = $validUnlock !== null;
             }
         }
 
-        // Create print order
-        $order = $this->printOrderService->createOrder(
-            Auth::id(),
-            $template->id,
-            $request->order_type,
-            $memberIds,
-            $request->order_type === 'digital' ? null : $request->shipping_name,
-            $request->order_type === 'digital' ? null : $request->shipping_phone,
-            $request->order_type === 'digital' ? null : $request->shipping_address,
-            null, null, null,
-            $pdfPath,
-            $price
-        );
-
-        return redirect()->route('print-orders.show', $order->id)
-            ->with('success', 'Đã đặt hàng thành công! Chúng tôi sẽ liên hệ để xác nhận và gửi.');
+        return view('print-orders.index', compact(
+            'templates',
+            'selectedTemplate',
+            'svg',
+            'familyGroup',
+            'isUnlocked',
+            'validUnlock',
+        ));
     }
 
-    public function show($id): View
+    /**
+     * Xác nhận thanh toán → tạo DownloadUnlock, generate PDF.
+     * MVP: optimistic unlock (không verify chuyển khoản tự động).
+     */
+    public function confirmUnlock(Request $request)
     {
-        $order = $this->printOrderService->getOrder($id);
-        $this->authorizeOrder($order);
-
-        return view('print-orders.show', compact('order'));
-    }
-
-    public function track($id, Request $request)
-    {
-        $order = $this->printOrderService->getOrder($id);
-        $this->authorizeOrder($order);
-
-        $order->update([
-            'status' => $request->status,
-            'tracking_number' => $request->tracking_number,
-            'shipping_company' => $request->shipping_company,
-            'shipping_fee' => $request->shipping_fee,
-            'notes' => $request->notes,
+        $request->validate([
+            'template_id'   => ['required', 'string', Rule::in(array_keys(config('print_templates', [])))],
+            'payment_note'  => ['nullable', 'string', 'max:255'],
         ]);
 
-        return back()->with('success', 'Đã cập nhật trạng thái đơn hàng.');
+        $familyGroup = FamilyGroup::where('user_id', Auth::id())->firstOrFail();
+        $template    = $this->printOrderService->getTemplate($request->template_id);
+
+        if (! $template) {
+            return back()->withErrors(['template_id' => 'Mẫu không hợp lệ.']);
+        }
+
+        // Generate PDF
+        $members     = $familyGroup->familyMembers;
+        $filePath    = $this->pdfService->generate($members, $template);
+
+        // Ghi nhận unlock — snapshot tree_updated_at tại thời điểm này
+        DownloadUnlock::create([
+            'user_id'          => Auth::id(),
+            'family_group_id'  => $familyGroup->id,
+            'tree_snapshot_at' => $familyGroup->tree_updated_at ?? now(),
+            'template_id'      => $request->template_id,
+            'file_path'        => $filePath,
+            'status'           => 'active',
+            'amount'           => 49000,
+            'payment_note'     => $request->payment_note,
+        ]);
+
+        return redirect()
+            ->route('print-orders.index', ['template_id' => $request->template_id])
+            ->with('success', 'Mở khóa thành công! Nhấn "Tải về" để tải file gia phả.');
     }
 
-    private function authorizeOrder($order): void
+    /**
+     * Download file gia phả (chỉ khi đã unlock và cây chưa bị sửa).
+     */
+    public function download(Request $request)
     {
+        $request->validate([
+            'template_id' => ['required', 'string'],
+        ]);
+
+        $familyGroup = FamilyGroup::where('user_id', Auth::id())->firstOrFail();
+        $validUnlock = $familyGroup->validUnlock(Auth::id());
+
+        if (! $validUnlock) {
+            return redirect()
+                ->route('print-orders.index', ['template_id' => $request->template_id])
+                ->withErrors(['unlock' => 'Bạn cần mở khóa tải về trước.']);
+        }
+
+        // Nếu file đã bị xóa (lỗi lạ), regenerate
+        if (! $validUnlock->file_path || ! Storage::disk('public')->exists($validUnlock->file_path)) {
+            $template = $this->printOrderService->getTemplate($validUnlock->template_id ?? $request->template_id);
+            $members  = $familyGroup->familyMembers;
+            $filePath = $this->pdfService->generate($members, $template);
+            $validUnlock->update(['file_path' => $filePath]);
+        }
+
+        $absolutePath = Storage::disk('public')->path($validUnlock->file_path);
+        $downloadName = 'gia-pha-' . $familyGroup->name . '.pdf';
+
+        return response()->download($absolutePath, $downloadName, [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    /**
+     * Xem đơn đặt in (legacy — giữ để không 404 link cũ).
+     */
+    public function show($id)
+    {
+        $order = $this->printOrderService->getOrder($id);
         abort_if($order->user_id !== Auth::id(), 403);
+
+        return view('print-orders.show', compact('order'));
     }
 }

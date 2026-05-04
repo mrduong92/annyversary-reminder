@@ -1,6 +1,19 @@
 <?php
 
 return [
+    'default' => [
+        'id'           => 'default',
+        'name'         => 'Mẫu Truyền Thống',
+        'description'  => 'Hoa văn truyền thống Việt Nam, khổ A0 ngang.',
+        'preview_image'=> null,
+        'is_active'    => true,
+        'width'        => 3508,
+        'height'       => 2480,
+        'padding'      => 350,
+        'show_title'   => true,
+        'view_name'    => 'print-templates.default.index',
+    ],
+
     'gia_pha_2' => [
         'id' => 'gia_pha_2',
         'name' => 'Mẫu Cao Cấp 1',
