@@ -40,7 +40,12 @@
 
         {{-- Tree View --}}
         <div x-show="tab === 'tree'">
-            <div class="flex items-center justify-end mb-2">
+            <div class="flex items-center justify-end mb-2 gap-2">
+                <a href="{{ route('print-orders.index') }}"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                    In Gia Phả
+                </a>
                 <button id="export-png-btn"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -165,6 +170,58 @@
         </div>
     </div>
 
+    {{-- Popup sửa thành viên --}}
+    <div id="gp-edit-member-overlay"
+         style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:14px;padding:24px;width:340px;box-shadow:0 24px 64px rgba(0,0,0,.25);"
+             onclick="event.stopPropagation()">
+            <h3 style="font-size:15px;font-weight:600;color:#111827;margin:0 0 16px">Sửa thông tin nhanh</h3>
+            <form id="gp-edit-member-form" autocomplete="off">
+                <input type="hidden" name="id">
+                <div style="margin-bottom:12px">
+                    <label style="font-size:12px;font-weight:500;color:#374151;display:block;margin-bottom:4px">Danh xưng</label>
+                    <input name="pronoun" placeholder="VD: Cụ ông, Ông, Bà..."
+                           style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+                </div>
+                <div style="margin-bottom:12px">
+                    <label style="font-size:12px;font-weight:500;color:#374151;display:block;margin-bottom:4px">Họ và tên *</label>
+                    <input name="name" required placeholder="Nguyễn Văn A"
+                           style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+                </div>
+                <div style="margin-bottom:12px">
+                    <label style="font-size:12px;font-weight:500;color:#374151;display:block;margin-bottom:4px">Giới tính</label>
+                    <select name="gender" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff">
+                        <option value="unknown">Không rõ</option>
+                        <option value="male">Nam</option>
+                        <option value="female">Nữ</option>
+                    </select>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:20px">
+                    <div style="flex:1">
+                        <label style="font-size:12px;font-weight:500;color:#374151;display:block;margin-bottom:4px">Năm sinh</label>
+                        <input name="birth_year" type="number" min="1800" max="2100" placeholder="VD: 1945"
+                               style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+                    </div>
+                    <div style="flex:1">
+                        <label style="font-size:12px;font-weight:500;color:#374151;display:block;margin-bottom:4px">Năm mất</label>
+                        <input name="death_year" type="number" min="1800" max="2100" placeholder="VD: 2010"
+                               style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;box-sizing:border-box">
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end">
+                    <button type="button" id="gp-edit-member-cancel"
+                            style="padding:8px 16px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;cursor:pointer;background:#fff;color:#374151">
+                        Hủy
+                    </button>
+                    <button type="submit" id="gp-edit-member-submit"
+                            style="padding:8px 20px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer">
+                        Lưu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     @push('styles')
     <link rel="stylesheet" href="/vendor/family-chart.css">
     <style>
@@ -254,6 +311,68 @@
             }
         });
 
+        // ── Popup sửa thành viên ──────────────────────────────────────
+        const editOverlay = document.getElementById('gp-edit-member-overlay');
+        const editForm    = document.getElementById('gp-edit-member-form');
+        const editSubmitBtn = document.getElementById('gp-edit-member-submit');
+        window.gpOpenEditMember = function(id) {
+            const node = window.treeNodes.find(n => n.id == id);
+            if (!node) return;
+
+            editForm.elements['id'].value = node.id;
+            editForm.elements['name'].value = node.name || '';
+            editForm.elements['pronoun'].value = node.pronoun || '';
+
+            // Map gender
+            let g = 'unknown';
+            if (node.gender === 'male' || node.gender === 'M') g = 'male';
+            if (node.gender === 'female' || node.gender === 'F') g = 'female';
+            editForm.elements['gender'].value = g;
+
+            editForm.elements['birth_year'].value = node.birth_year || '';
+            editForm.elements['death_year'].value = node.death_year || '';
+
+            editOverlay.style.display = 'flex';
+            editForm.elements['name'].focus();
+        };
+        document.getElementById('gp-edit-member-cancel').addEventListener('click', closeEditPopup);
+        editOverlay.addEventListener('click', e => { if (e.target === editOverlay) closeEditPopup(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEditPopup(); });
+        function closeEditPopup() {
+            editOverlay.style.display = 'none';
+        }
+        editForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            editSubmitBtn.disabled = true;
+            editSubmitBtn.textContent = 'Đang lưu...';
+            try {
+                const fd = new FormData(editForm);
+                const res = await fetch('{{ route('genealogy.save') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+                    body: JSON.stringify({
+                        action:     'update_member',
+                        id:         fd.get('id'),
+                        name:       fd.get('name').trim(),
+                        pronoun:    fd.get('pronoun').trim() || null,
+                        gender:     fd.get('gender'),
+                        birth_year: fd.get('birth_year') ? parseInt(fd.get('birth_year')) : null,
+                        death_year: fd.get('death_year') ? parseInt(fd.get('death_year')) : null,
+                    }),
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                closeEditPopup();
+                const fresh = await fetch(dataUrl, { headers: { Accept: 'application/json' } }).then(r => r.json());
+                initTree(fresh);
+            } catch (err) {
+                console.error('Update member failed:', err);
+                alert('Có lỗi xảy ra, vui lòng thử lại.');
+            } finally {
+                editSubmitBtn.disabled = false;
+                editSubmitBtn.textContent = 'Lưu';
+            }
+        });
+
         // ── Tree rendering ───────────────────────────────────────────────
         let f3Chart = null; // Lưu reference để destroy khi reload
         let exportBtnListenerAdded = false; // Đánh dấu đã add event listener chưa
@@ -282,6 +401,7 @@
             }
             cont.innerHTML = '';
             const validNodes = rawNodes.filter(n => n && n.id);
+            window.treeNodes = validNodes;
             const validIds   = new Set(validNodes.map(n => String(n.id)));
 
             const data = validNodes.map(n => {
@@ -312,13 +432,16 @@
                     'first name': n.name,
                     pronoun:     n.pronoun    || '',
                     birthday:    n.birth_year ? String(n.birth_year) : '',
+                    death_day:  n.death_day ? String(n.death_day) : '',
+                    death_month:  n.death_month ? String(n.death_month) : '',
                     death_year:  n.death_year ? String(n.death_year) : '',
+                    death_date_type:  n.death_date_type ? String(n.death_date_type) : '',
                     gender:      n.gender === 'female' ? 'F' : 'M',
                     member_id:   n.id,
                     edit_url:    n.edit_url    || '',
                     delete_url:  n.delete_url  || '',
                     has_event:   !! n.event_url,
-                    is_deceased: !! n.death_year,
+                    is_alive:    !! n.is_alive,
                 },
                 };
             });
@@ -332,14 +455,16 @@
             f3Chart.setCardHtml()
                 .setCardInnerHtmlCreator(function(d) {
                     const m       = d.data.data;
-                    const yrs     = [m.birthday, m.death_year].filter(Boolean).join('–');
-                    const dead    = m.is_deceased;
+                    console.log(m);
+                    const dead    = !m.is_alive;
+                    const deadDateType = m.death_date_type === 'lunar' ? 'Âm lịch' : 'Dương Lịch';
+                    const yrs     = dead ? `${m.death_day}/${m.death_month} ${deadDateType}` : m.birthday;
                     const isFemale = m.gender === 'F';
                     const genderDot = isFemale
                         ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f472b6;margin-left:5px;vertical-align:middle" title="Nữ"></span>'
                         : '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#60a5fa;margin-left:5px;vertical-align:middle" title="Nam"></span>';
                     const borderColor = dead ? '#d1d5db' : (isFemale ? '#fbcfe8' : '#c7d2fe');
-                    const display = m.pronoun ? `${m.pronoun} ${m['first name']}` : (m['first name'] || '?');
+                    const display = m.pronoun ? `${m.pronoun}<br>${m['first name']}` : (m['first name'] || '?');
                     const safeName = display.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                     return `<div style="
                         background:${dead ? '#f9fafb' : '#fff'};
@@ -354,6 +479,10 @@
                                style="font-size:11px;color:#6366f1;text-decoration:none;padding:2px 8px;border:1px solid #e0e7ff;border-radius:5px">
                                 Chi tiết
                             </a>
+                            <button onclick="event.stopPropagation(); window.gpOpenEditMember(${m.member_id})"
+                                    style="font-size:11px;color:#ca8a04;background:none;border:1px solid #fef08a;border-radius:5px;padding:2px 8px;cursor:pointer">
+                                Sửa
+                            </button>
                             <button onclick="event.stopPropagation(); window.gpOpenAddRel(${m.member_id}, '${safeName}')"
                                     style="font-size:11px;color:#059669;background:none;border:1px solid #d1fae5;border-radius:5px;padding:2px 8px;cursor:pointer">
                                 + Thêm

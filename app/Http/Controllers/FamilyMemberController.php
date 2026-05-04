@@ -160,7 +160,7 @@ class FamilyMemberController extends Controller
             ->with('success', "Đã xóa {$name} khỏi gia phả.");
     }
 
-    /** API: trả về JSON cho Balkan FamilyTree JS */
+    /** API: trả về JSON cho FamilyTree JS */
     public function treeData(): JsonResponse
     {
         $group     = active_group();
@@ -211,7 +211,10 @@ class FamilyMemberController extends Controller
                 'pronoun'      => $m->pronoun,
                 'gender'       => $m->gender === 'male' ? 'male' : ($m->gender === 'female' ? 'female' : 'male'),
                 'birth_year'   => $m->birth_year,
+                'death_day'    => $m->death_day,
+                'death_month'  => $m->death_month,
                 'death_year'   => $m->death_year,
+                'death_date_type' => $m->death_date_type,
                 'is_alive'     => $m->isAlive(),
                 'has_event'    => $m->memorial_event_id !== null,
                 'event_url'    => $m->memorial_event_id ? route('events.show', $m->memorial_event_id) : null,
