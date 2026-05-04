@@ -145,14 +145,25 @@
 
         {{-- Cột phải: Preview SVG --}}
         <div class="lg:col-span-2">
-            <div class="bg-white shadow sm:rounded-lg p-4 overflow-auto" style="max-height: 800px;">
-                <div class="border border-gray-200">
-                    <object data="{{ $svg }}" type="image/svg+xml" width="100%" height="780">
-                        Trình duyệt không hỗ trợ SVG.
-                    </object>
+            {{-- Zoom controls (vanilla JS — không dùng Alpine scope để tránh conflict) --}}
+            <div class="flex items-center justify-between mb-2 px-1">
+                <p class="text-xs text-gray-400">Dùng nút để zoom, kéo ngang để xem full.</p>
+                <div class="flex items-center gap-1">
+                    <button onclick="svgZoom(-0.25)"
+                            class="w-7 h-7 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-base leading-none select-none">−</button>
+                    <span id="svg-zoom-label" class="text-xs text-gray-500 w-12 text-center tabular-nums">100%</span>
+                    <button onclick="svgZoom(+0.25)"
+                            class="w-7 h-7 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-base leading-none select-none">+</button>
+                    <button onclick="svgZoomReset()"
+                            class="ml-1 px-2 h-7 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600 select-none">Fit</button>
                 </div>
             </div>
-            <p class="text-xs text-gray-400 mt-2 text-center">Bản xem trước — bản tải về có độ phân giải cao hơn.</p>
+            {{-- Scrollable preview --}}
+            <div class="bg-white shadow sm:rounded-lg overflow-auto" style="height: 720px;">
+                <img id="svg-preview-img" src="{{ $svg }}"
+                     alt="Bản xem trước gia phả" style="width:100%; display:block; min-width:100%;">
+            </div>
+            <p class="text-xs text-gray-400 mt-2 text-center">Bản xem trước — file tải về có độ phân giải cao hơn.</p>
         </div>
     </div>
     @endif
@@ -254,6 +265,23 @@
 </div>
 
 <script>
+// ── SVG zoom — vanilla JS (không dùng Alpine scope để tránh conflict) ──────
+let _svgZoom = 1;
+function svgZoom(delta) {
+    _svgZoom = Math.min(4, Math.max(0.25, _svgZoom + delta));
+    const img   = document.getElementById('svg-preview-img');
+    const label = document.getElementById('svg-zoom-label');
+    if (img)   img.style.width = (_svgZoom * 100) + '%';
+    if (label) label.textContent = Math.round(_svgZoom * 100) + '%';
+}
+function svgZoomReset() {
+    _svgZoom = 1;
+    const img   = document.getElementById('svg-preview-img');
+    const label = document.getElementById('svg-zoom-label');
+    if (img)   img.style.width = '100%';
+    if (label) label.textContent = '100%';
+}
+
 function printOrderPage() {
     return {
         showUnlockModal: false,

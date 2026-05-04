@@ -1,48 +1,23 @@
 <?php
 
 return [
+    /*
+     * Template mặc định — Gia_Pha_3.svg (SVG injection approach)
+     * Canvas: 3508 × 2480 (A0 landscape)
+     * Capacity: 69 members (Gen 0–6)
+     */
     'default' => [
-        'id'           => 'default',
-        'name'         => 'Mẫu Truyền Thống',
-        'description'  => 'Hoa văn truyền thống Việt Nam, khổ A0 ngang.',
-        'preview_image'=> null,
-        'is_active'    => true,
-        'width'        => 3508,
-        'height'       => 2480,
-        'padding'      => 350,
-        'show_title'   => true,
-        'view_name'    => 'print-templates.default.index',
-    ],
-
-    'gia_pha_2' => [
-        'id' => 'gia_pha_2',
-        'name' => 'Mẫu Cao Cấp 1',
-        'description' => 'Khung viền hoạ tiết hoàng gia, kích thước lớn.',
+        'id'          => 'default',
+        'name'        => 'Mẫu Truyền Thống',
+        'description' => 'Hoa văn truyền thống Việt Nam, khổ A0 ngang. Tối đa 69 thành viên.',
+        'svg_path'    => 'vectors/Gia_Pha_3.svg',  // relative to base_path()
+        'couple_root' => true,
+        'canvas_w'    => 3508,
+        'canvas_h'    => 2480,
+        'title_cx'    => 1754,   // center x — nằm giữa cuộn băng
+        'title_cy'    => 315,    // center y — nằm trong vùng màu đỏ của cuộn
+        'title_size'  => 44,     // max font size, tự thu nhỏ nếu tên dài
         'preview_image' => null,
-        'is_active' => true,
-        'width' => 7022,
-        'height' => 4967,
-        'padding' => 100,
-        'show_title' => false,
-        'tree_x' => 1000,
-        'tree_y' => 1000,
-        'tree_scale' => 4,
-        'view_name' => 'print-templates.gia_pha_2',
-    ],
-    
-    'gia_pha_3' => [
-        'id' => 'gia_pha_3',
-        'name' => 'Mẫu Cao Cấp 2',
-        'description' => 'Khung viền hiện đại, màu sắc trang nhã.',
-        'preview_image' => null,
-        'is_active' => true,
-        'width' => 3508,
-        'height' => 2480,
-        'padding' => 50,
-        'show_title' => false,
-        'tree_x' => 500,
-        'tree_y' => 500,
-        'tree_scale' => 2,
-        'view_name' => 'print-templates.gia_pha_3',
+        'is_active'   => true,
     ],
 ];
