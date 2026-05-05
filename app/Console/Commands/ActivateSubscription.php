@@ -11,7 +11,7 @@ class ActivateSubscription extends Command
 {
     protected $signature = 'subscription:activate
                             {user : Email hoặc ID của user}
-                            {plan : mini | premium}
+                            {plan : advanced | basic}
                             {--months=12 : Số tháng (default 12)}
                             {--amount=0 : Số tiền đã thu (VND)}
                             {--note= : Ghi chú}';
@@ -23,8 +23,8 @@ class ActivateSubscription extends Command
         $identifier = $this->argument('user');
         $plan       = $this->argument('plan');
 
-        if (! in_array($plan, ['mini', 'premium', 'free'])) {
-            $this->error("Plan phải là: free | mini | premium");
+        if (! in_array($plan, ['advanced', 'basic'])) {
+            $this->error("Plan phải là: basic | advanced");
             return 1;
         }
 
@@ -42,13 +42,13 @@ class ActivateSubscription extends Command
         $amount  = (int) $this->option('amount');
         $note    = $this->option('note');
         $startAt = now();
-        $expiresAt = $plan === 'free' ? null : $startAt->copy()->addMonths($months);
+        $expiresAt = $plan === 'basic' ? null : $startAt->copy()->addMonths($months);
 
         // Hiển thị confirm
         $this->table(['Field', 'Value'], [
             ['User',       $user->name . ' (' . ($user->email ?? $user->phone) . ')'],
             ['Plan',       strtoupper($plan)],
-            ['Thời hạn',   $plan === 'free' ? 'Vĩnh viễn' : $expiresAt->format('d/m/Y')],
+            ['Thời hạn',   $plan === 'basic' ? 'Vĩnh viễn (free)' : $expiresAt->format('d/m/Y')],
             ['Số tiền',    number_format($amount) . ' VND'],
             ['Ghi chú',   $note ?: '—'],
         ]);

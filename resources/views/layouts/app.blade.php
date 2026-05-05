@@ -218,17 +218,11 @@
                     <span class="ms-auto text-xs bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full font-medium">Beta</span>
                 </a>
             </li>
+            {{-- Tài liệu gia đình (RAG) — ẩn tạm, chưa test
             <li>
-                <a href="{{ route('documents.index') }}"
-                    @class([
-                        'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                        'bg-primary-50 text-primary-700' => request()->routeIs('documents.*'),
-                        'text-gray-700 hover:bg-gray-100' => !request()->routeIs('documents.*'),
-                    ])>
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Tài liệu gia đình
-                </a>
+                <a href="{{ route('documents.index') }}">Tài liệu gia đình</a>
             </li>
+            --}}
             <li class="pt-3 mt-2 border-t border-gray-100">
                 <a href="{{ route('settings.index') }}"
                     @class([

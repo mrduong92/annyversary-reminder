@@ -22,19 +22,6 @@
             </div>
 
             <div>
-                <label for="memorial_event_id" class="block mb-1.5 text-sm font-medium text-gray-700">Gắn với ngày giỗ</label>
-                <select id="memorial_event_id" name="memorial_event_id"
-                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5">
-                    <option value="">-- Không gắn --</option>
-                    @foreach ($events as $event)
-                        <option value="{{ $event->id }}" {{ old('memorial_event_id', $prayer->memorial_event_id) == $event->id ? 'selected' : '' }}>
-                            {{ $event->name }} ({{ $event->dateLabel() }})
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
-            <div>
                 <label for="content" class="block mb-1.5 text-sm font-medium text-gray-700">Nội dung <span class="text-red-500">*</span></label>
                 <textarea id="content" name="content" rows="16" required
                     class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 font-mono @error('content') border-red-400 @enderror">{{ old('content', $prayer->content) }}</textarea>

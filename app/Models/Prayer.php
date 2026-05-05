@@ -8,13 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Prayer extends Model
 {
     protected $fillable = [
-        'user_id', 'memorial_event_id', 'title', 'content', 'ai_generated',
+        'user_id', 'memorial_event_id', 'title', 'content', 'ai_generated', 'is_system',
     ];
 
     protected function casts(): array
     {
         return [
             'ai_generated' => 'boolean',
+            'is_system'    => 'boolean',
         ];
     }
 

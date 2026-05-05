@@ -14,8 +14,7 @@ use Illuminate\View\View;
 class PaymentController extends Controller
 {
     private const PRICES = [
-        'mini'    => 100000,
-        'premium' => 200000,
+        'advanced' => 149000,
     ];
 
     public function __construct(private readonly SubscriptionService $subscription) {}
@@ -23,7 +22,7 @@ class PaymentController extends Controller
     /** Tạo order và chuyển đến trang QR */
     public function create(Request $request): RedirectResponse
     {
-        $request->validate(['plan' => ['required', 'in:mini,premium']]);
+        $request->validate(['plan' => ['required', 'in:advanced']]);
 
         $plan   = $request->input('plan');
         $user   = Auth::user();

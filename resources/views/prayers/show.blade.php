@@ -7,6 +7,7 @@
         </div>
         <div class="flex items-start justify-between gap-4">
             <h1 class="text-2xl font-semibold text-gray-900">{{ $prayer->title }}</h1>
+            @if (!$prayer->is_system)
             <div class="flex gap-2 shrink-0">
                 <a href="{{ route('prayers.edit', $prayer) }}"
                     class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Sửa</a>
@@ -16,17 +17,20 @@
                     <button class="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50">Xóa</button>
                 </form>
             </div>
+            @endif
         </div>
         <div class="flex items-center gap-3 mt-1">
-            @if ($prayer->ai_generated)
+            @if ($prayer->is_system)
+                <span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Văn khấn mẫu</span>
+            @elseif ($prayer->ai_generated)
                 <span class="text-xs bg-primary-50 text-primary-600 px-2 py-0.5 rounded-full font-medium">AI soạn</span>
             @endif
             @if ($prayer->memorialEvent)
-                <span class="text-xs text-gray-400">
-                    Giỗ: {{ $prayer->memorialEvent->name }}
-                </span>
+                <span class="text-xs text-gray-400">Giỗ: {{ $prayer->memorialEvent->name }}</span>
             @endif
-            <span class="text-xs text-gray-400">{{ $prayer->created_at->format('d/m/Y H:i') }}</span>
+            @if (!$prayer->is_system)
+                <span class="text-xs text-gray-400">{{ $prayer->created_at->format('d/m/Y H:i') }}</span>
+            @endif
         </div>
     </div>
 

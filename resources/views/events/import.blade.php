@@ -10,6 +10,21 @@
     <p class="text-sm text-gray-500 mt-0.5">Chụp ảnh sổ tay, tờ giấy ghi ngày giỗ — AI sẽ đọc và tạo tự động</p>
 </div>
 
+@if (!$canImport)
+<div class="bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-start gap-4">
+    <svg class="w-6 h-6 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+    </svg>
+    <div>
+        <p class="font-semibold text-amber-800 text-sm">Tính năng dành cho gói Đại Gia Đình</p>
+        <p class="text-amber-700 text-sm mt-1">Nhập ngày giỗ từ ảnh bằng AI chỉ có ở gói <strong>Đại Gia Đình</strong> (149.000đ/năm).</p>
+        <a href="{{ route('upgrade') }}" class="mt-3 inline-block text-sm font-semibold text-amber-800 underline hover:text-amber-900">
+            Nâng cấp ngay →
+        </a>
+    </div>
+</div>
+@else
+
 <div x-data="importTool()" class="space-y-6">
 
     {{-- Bước 1: Upload ảnh --}}
@@ -166,6 +181,8 @@
     <option value="Bố"><option value="Mẹ"><option value="Chú"><option value="Cô"><option value="Dì"><option value="Cậu">
     <option value="Bác"><option value="Anh"><option value="Chị">
 </datalist>
+
+@endif
 
 @push('scripts')
 <script>

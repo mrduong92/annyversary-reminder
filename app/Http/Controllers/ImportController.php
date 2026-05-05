@@ -6,6 +6,7 @@ use App\Services\LunarCalendarService;
 use App\Services\SubscriptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
@@ -14,12 +15,16 @@ class ImportController extends Controller
 {
     public function __construct(
         private readonly LunarCalendarService $lunar,
-        private readonly SubscriptionService $subscription
+        private readonly SubscriptionService  $subscription,
     ) {}
 
     public function index(): View
     {
-        return view('events.import');
+        $user          = Auth::user();
+        $canImport     = $this->subscription->canImportImage($user);
+        $activeFamilyGroup = active_group();
+
+        return view('events.import', compact('canImport', 'activeFamilyGroup'));
     }
 
     /**
@@ -27,12 +32,16 @@ class ImportController extends Controller
      */
     public function preview(Request $request): JsonResponse
     {
-        if (\Illuminate\Support\Facades\Gate::denies('import-image')) {
-            return response()->json(['error' => 'Tính năng nhập từ ảnh chỉ dành cho gói Premium.'], 403);
+        $user = Auth::user();
+
+        if (! $this->subscription->canImportImage($user)) {
+            return response()->json([
+                'error' => 'Nhập ngày giỗ từ ảnh chỉ dành cho gói Đại Gia Đình.',
+            ], 403);
         }
 
         $request->validate([
-            'image' => ['required', 'image', 'max:10240'], // max 10MB
+            'image' => ['required', 'image', 'max:10240'],
         ]);
 
         $file     = $request->file('image');
@@ -46,9 +55,9 @@ Hãy đọc và trích xuất TẤT CẢ ngày giỗ có trong ảnh.
 Trả về JSON array (CHỈ JSON, không giải thích, không markdown):
 [
   {
-    "pronoun": "Danh xưng (VD: Cụ, Ông, Bà...)",
-    "name": "Tên người mất đầy đủ",
-    "relationship": "Quan hệ (VD: ông nội, bà ngoại, bố, mẹ...)",
+    "pronoun": "Danh xưng (VD: Cụ Ông, Cụ Bà, Ông, Bà, Bố, Mẹ, Cụ...)",
+    "name": "Họ và tên người mất",
+    "relationship": "Quan hệ với người trong nhà (VD: ông nội, bà ngoại, bố, mẹ...)",
     "lunar_day": 10,
     "lunar_month": 3,
     "date_type": "lunar"
@@ -56,18 +65,17 @@ Trả về JSON array (CHỈ JSON, không giải thích, không markdown):
 ]
 
 Quy tắc:
-- Nếu là ngày âm lịch: date_type = "lunar"
-- Nếu là ngày dương lịch: date_type = "solar"
-- Nếu không xác định được: mặc định lunar
-- lunar_day và lunar_month phải là số nguyên
+- Nếu là ngày âm lịch (có ghi "âm", "ÂL", không ghi gì): date_type = "lunar"
+- Nếu là ngày dương lịch (có ghi "DL", "dương"): date_type = "solar"
+- lunar_day và lunar_month phải là số nguyên dương
 - Nếu không rõ tên: ghi "Không rõ"
-- pronoun có thể để trống ("") nếu không có danh xưng rõ ràng
-- Nếu không có ngày giỗ nào: trả về []
+- pronoun để "" nếu không có
+- Nếu không tìm thấy ngày giỗ nào: trả về []
 PROMPT;
 
         try {
             $key      = config('services.gemini.api_key');
-            $model    = 'gemini-2.5-flash';
+            $model    = config('services.gemini.model', 'gemini-2.0-flash-lite');
             $response = Http::timeout(30)->post(
                 "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}",
                 [
@@ -90,31 +98,36 @@ PROMPT;
             }
 
             $text   = $response->json('candidates.0.content.parts.0.text', '[]');
-            $events = json_decode($text, true);
+            $parsed = json_decode($text, true);
 
-            if (! is_array($events)) {
+            if (! is_array($parsed)) {
                 return response()->json(['error' => 'Không tìm thấy ngày giỗ nào trong ảnh.'], 422);
             }
 
-            // Validate và làm sạch từng record
-            $cleaned = collect($events)->filter(fn ($e) =>
-                isset($e['lunar_day'], $e['lunar_month']) &&
-                is_numeric($e['lunar_day']) &&
-                is_numeric($e['lunar_month'])
-            )->map(fn ($e) => [
-                'pronoun'      => trim($e['pronoun'] ?? ''),
-                'name'         => trim($e['name'] ?? 'Không rõ'),
-                'relationship' => trim($e['relationship'] ?? ''),
-                'lunar_day'    => (int) $e['lunar_day'],
-                'lunar_month'  => (int) $e['lunar_month'],
-                'date_type'    => in_array($e['date_type'] ?? '', ['lunar', 'solar']) ? $e['date_type'] : 'lunar',
-            ])->values();
+            $events = collect($parsed)
+                ->filter(fn ($e) =>
+                    isset($e['lunar_day'], $e['lunar_month']) &&
+                    is_numeric($e['lunar_day']) &&
+                    is_numeric($e['lunar_month']) &&
+                    (int) $e['lunar_day'] >= 1 &&
+                    (int) $e['lunar_month'] >= 1
+                )
+                ->map(fn ($e) => [
+                    'pronoun'      => trim($e['pronoun'] ?? ''),
+                    'name'         => trim($e['name'] ?? 'Không rõ'),
+                    'relationship' => trim($e['relationship'] ?? ''),
+                    'lunar_day'    => (int) $e['lunar_day'],
+                    'lunar_month'  => (int) $e['lunar_month'],
+                    'date_type'    => in_array($e['date_type'] ?? '', ['lunar', 'solar'])
+                        ? $e['date_type'] : 'lunar',
+                ])
+                ->values();
 
-            if ($cleaned->isEmpty()) {
+            if ($events->isEmpty()) {
                 return response()->json(['error' => 'Không tìm thấy ngày giỗ hợp lệ trong ảnh.'], 422);
             }
 
-            return response()->json(['events' => $cleaned]);
+            return response()->json(['events' => $events]);
 
         } catch (\Throwable $e) {
             Log::error('Import preview error', ['error' => $e->getMessage()]);
@@ -123,7 +136,8 @@ PROMPT;
     }
 
     /**
-     * Nhận JSON đã edit từ user, bulk create events.
+     * Nhận JSON đã review từ user, bulk create MemorialEvents.
+     * KHÔNG tạo FamilyMember — đây là tính năng riêng biệt.
      */
     public function confirm(Request $request): JsonResponse
     {
@@ -131,23 +145,18 @@ PROMPT;
             'events'                   => ['required', 'array', 'min:1', 'max:50'],
             'events.*.pronoun'         => ['nullable', 'string', 'max:50'],
             'events.*.name'            => ['required', 'string', 'max:100'],
-            'events.*.relationship'    => ['nullable', 'string', 'max:50'],
+            'events.*.relationship'    => ['nullable', 'string', 'max:80'],
             'events.*.lunar_day'       => ['required', 'integer', 'min:1', 'max:31'],
             'events.*.lunar_month'     => ['required', 'integer', 'min:1', 'max:12'],
             'events.*.date_type'       => ['required', 'in:lunar,solar'],
         ]);
 
         $group   = active_group();
-        $user    = auth()->user();
+        $user    = Auth::user();
         $created = 0;
         $errors  = [];
 
         foreach ($request->events as $i => $data) {
-            if (! $this->subscription->canAddEvent($user)) {
-                $errors[] = "Dòng " . ($i + 1) . " ({$data['name']}): Đã đạt giới hạn số lượng ngày giỗ của gói hiện tại.";
-                continue;
-            }
-
             try {
                 $day   = (int) $data['lunar_day'];
                 $month = (int) $data['lunar_month'];
@@ -157,26 +166,24 @@ PROMPT;
                     ? $this->lunar->nextSolarOccurrence($day, $month)
                     : $this->lunar->nextOccurrence($day, $month);
 
-                $member = $group->members()->create([
-                    'user_id'      => $user->id,
-                    'name'         => $data['name'],
-                    'pronoun'      => $data['pronoun'] ?? null,
-                    'relationship' => $data['relationship'] ?? null,
-                    'gender'       => 'unknown',
-                ]);
+                // Tên hiển thị: ghép danh xưng + tên
+                $displayName = trim(($data['pronoun'] ?? '') . ' ' . $data['name']);
 
                 $group->memorialEvents()->create([
-                    'user_id'          => $user->id,
-                    'family_member_id' => $member->id,
-                    'lunar_day'        => $day,
-                    'lunar_month'      => $month,
-                    'date_type'        => $type,
-                    'solar_date_next'  => $solarNext,
-                    'is_active'        => true,
+                    'user_id'        => $user->id,
+                    'name'           => $displayName,
+                    'relationship'   => $data['relationship'] ?? null,
+                    'lunar_day'      => $day,
+                    'lunar_month'    => $month,
+                    'date_type'      => $type,
+                    'solar_date_next'=> $solarNext,
+                    'is_active'      => true,
                 ]);
+
                 $created++;
             } catch (\Throwable $e) {
-                $errors[] = "Dòng " . ($i + 1) . " ({$data['name']}): " . $e->getMessage();
+                Log::error('Import confirm error', ['row' => $i, 'error' => $e->getMessage()]);
+                $errors[] = 'Dòng ' . ($i + 1) . " ({$data['name']}): " . $e->getMessage();
             }
         }
 

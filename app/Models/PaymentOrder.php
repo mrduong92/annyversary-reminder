@@ -38,9 +38,10 @@ class PaymentOrder extends Model
     public function planLabel(): string
     {
         return match ($this->plan) {
-            'mini'    => 'Mini',
-            'premium' => 'Premium',
-            default   => $this->plan,
+            'advanced' => 'Đại Gia Đình',
+            'mini'     => 'Mini',      // legacy
+            'premium'  => 'Premium',   // legacy
+            default    => $this->plan,
         };
     }
 

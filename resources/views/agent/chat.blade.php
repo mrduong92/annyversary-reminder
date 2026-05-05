@@ -107,24 +107,17 @@
                     <div x-html="formatMessage(msg.content)" class="prose prose-sm max-w-none"
                         :class="msg.role === 'user' ? 'prose-invert' : ''"></div>
 
-                    {{-- Nút Lưu văn khấn — chỉ hiện nếu message là prayer --}}
+                    {{-- Badge "Đã lưu tự động" — hiện khi AI soạn văn khấn --}}
                     <template x-if="msg.isPrayer && msg.role === 'assistant'">
-                        <div class="mt-2 pt-2 border-t border-gray-100">
-                            <template x-if="!msg.saved">
-                                <button @click="savePrayer(msg, i)"
-                                    :disabled="msg.saving"
-                                    class="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
-                                    <span x-text="msg.saving ? 'Đang lưu...' : 'Lưu văn khấn'"></span>
-                                </button>
-                            </template>
-                            <template x-if="msg.saved">
-                                <a :href="msg.savedUrl" target="_blank"
-                                    class="inline-flex items-center gap-1.5 text-xs font-medium text-green-600 bg-green-50 px-3 py-1.5 rounded-lg">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                    Đã lưu — Xem văn khấn
-                                </a>
-                            </template>
+                        <div class="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2">
+                            <span class="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2.5 py-1 rounded-full font-medium">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                Đã lưu tự động
+                            </span>
+                            <a :href="msg.savedUrl" target="_blank"
+                               class="text-xs text-primary-600 hover:underline font-medium">
+                                Xem trong danh sách →
+                            </a>
                         </div>
                     </template>
 
@@ -157,8 +150,7 @@
         <form @submit.prevent="sendMessage()" class="flex items-end gap-2">
             <textarea
                 x-model="input"
-                @keydown.enter.exact.prevent="sendMessage()"
-                @keydown.enter.shift.exact="input += '\n'"
+                @keydown="handleEnterKey($event)"
                 rows="1"
                 x-ref="inputBox"
                 :disabled="streaming"
@@ -294,9 +286,9 @@ function chatAgent() {
                             const parsed = JSON.parse(data);
                             if (parsed?.type === 'text_delta' && parsed?.delta) {
                                 this.streamingText += parsed.delta;
-                            } else if (parsed?.type === 'tool_call' && parsed?.name === 'PrayerTool') {
-                                this.prayerDetected = true;
                             }
+                            // tool_call không được stream ra client bởi Laravel AI SDK,
+                            // nên detect prayer bằng nội dung text (xem bên dưới sau khi stream xong)
                         } catch { /* ignore non-JSON lines */ }
                     }
 
@@ -304,14 +296,20 @@ function chatAgent() {
                 }
 
                 if (this.streamingText) {
+                    // Detect marker [PRAYER_SAVED:{id}] được PrayerTool nhúng vào response
+                    const markerMatch = this.streamingText.match(/\[PRAYER_SAVED:(\d+)\]/);
+                    const prayerId    = markerMatch ? parseInt(markerMatch[1]) : null;
+                    // Strip marker khỏi nội dung hiển thị
+                    const cleanText   = this.streamingText.replace(/\[PRAYER_SAVED:\d+\]\n*/g, '').trimEnd();
+
                     this.messages.push({
                         role: 'assistant',
-                        content: this.streamingText,
+                        content: cleanText,
                         time: this.now(),
-                        isPrayer: this.prayerDetected,
-                        saved: false,
-                        saving: false,
-                        savedUrl: null,
+                        isPrayer: prayerId !== null,
+                        prayerId,
+                        saved: prayerId !== null,  // đã lưu tự động
+                        savedUrl: prayerId ? `/prayers/${prayerId}` : null,
                     });
                     this.prayerDetected = false;
                 }
@@ -346,34 +344,26 @@ function chatAgent() {
                 .replace(/\n/g, '<br>');
         },
 
-        async savePrayer(msg, index) {
-            msg.saving = true;
-            try {
-                const csrf = document.querySelector('meta[name="csrf-token"]').content;
-                // Tạo title từ dòng đầu của văn khấn
-                const title = msg.content.split('\n').filter(l => l.trim())[2]?.trim()
-                    || 'Văn khấn ' + new Date().toLocaleDateString('vi-VN');
-
-                const res = await fetch('{{ route('prayers.from-chat') }}', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
-                    body: JSON.stringify({ title, content: msg.content, ai_generated: true }),
-                });
-                const data = await res.json();
-                msg.saved = true;
-                msg.savedUrl = data.url;
-            } catch {
-                alert('Không thể lưu. Vui lòng thử lại.');
-            } finally {
-                msg.saving = false;
-            }
-        },
-
         scrollToBottom() {
             this.$nextTick(() => {
                 const el = this.$refs.messages;
                 if (el) el.scrollTop = el.scrollHeight;
             });
+        },
+
+        handleEnterKey(event) {
+            // Bỏ qua khi đang compose tiếng Việt (Telex/VNI IME)
+            if (event.isComposing || event.keyCode === 229) return;
+            if (event.key !== 'Enter') return;
+
+            if (event.shiftKey) {
+                // Shift+Enter: xuống dòng bình thường (không block)
+                return;
+            }
+
+            // Enter đơn: gửi tin nhắn
+            event.preventDefault();
+            this.sendMessage();
         },
 
         autoResize(el) {
