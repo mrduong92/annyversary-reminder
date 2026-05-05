@@ -42,7 +42,16 @@
         <div x-show="tab === 'tree'" x-data="genealogyActions()">
             <div class="flex items-center justify-end mb-2 gap-2">
 
-                {{-- Step 1: Xuất SVG --}}
+                {{-- Xuất PNG (client-side html2canvas) --}}
+                <button id="export-png-btn"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Xuất PNG
+                </button>
+
+                {{-- Xuất SVG (server-side, vector) --}}
                 <a href="{{ route('genealogy.export-svg') }}"
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -280,6 +289,43 @@
     @endpush
 
     @push('scripts')
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+    <script>
+    // PNG export — chụp cây đang hiển thị bằng html2canvas
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('export-png-btn')?.addEventListener('click', async function () {
+            const btn  = this;
+            const cont = document.getElementById('family-tree');
+            if (!cont) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Đang xuất...';
+
+            // Ẩn nút thao tác trong card trước khi chụp
+            const actions = cont.querySelectorAll('[data-actions]');
+            actions.forEach(el => el.style.display = 'none');
+
+            try {
+                const canvas = await html2canvas(cont, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                });
+                const a = document.createElement('a');
+                a.download = 'gia-pha.png';
+                a.href = canvas.toDataURL('image/png');
+                a.click();
+            } catch {
+                alert('Không thể xuất PNG. Thử lại sau.');
+            } finally {
+                actions.forEach(el => el.style.display = '');
+                btn.disabled = false;
+                btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Xuất PNG';
+            }
+        });
+    });
+    </script>
     <script>
     (function() {
         const dataUrl    = '{{ route('genealogy.data') }}';
