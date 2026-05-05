@@ -39,18 +39,67 @@
         </div>
 
         {{-- Tree View --}}
-        <div x-show="tab === 'tree'">
+        <div x-show="tab === 'tree'" x-data="genealogyActions()">
             <div class="flex items-center justify-end mb-2 gap-2">
-                <a href="{{ route('print-orders.index') }}"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-                    In Gia Phả
+
+                {{-- Step 1: Xuất SVG --}}
+                <a href="{{ route('genealogy.export-svg') }}"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Xuất SVG
                 </a>
-                <button id="export-png-btn"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Xuất PNG
+
+                {{-- Step 2 → 3: In treo tường --}}
+                <button @click="showPrintModal = true"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+                    </svg>
+                    In gia phả treo tường
                 </button>
+            </div>
+
+            {{-- Modal: In gia phả treo tường --}}
+            <div x-show="showPrintModal" x-cloak
+                 class="fixed inset-0 z-50 flex items-center justify-center p-4"
+                 x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+                <div class="absolute inset-0 bg-black/50" @click="showPrintModal = false"></div>
+                <div class="relative w-full max-w-sm bg-white rounded-2xl shadow-xl text-center" @click.stop>
+                    <div class="px-6 pt-8 pb-6">
+                        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                            <svg class="h-8 w-8 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.477 2 2 6.145 2 11.243c0 2.908 1.436 5.507 3.686 7.237l-.47 3.52 3.843-1.962c.934.258 1.928.397 2.941.397 5.523 0 10-4.144 10-9.243C22 6.145 17.523 2 12 2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-900 mb-3">In gia phả treo tường</h3>
+
+                        <div class="text-left bg-gray-50 rounded-xl p-4 mb-5 space-y-2 text-sm text-gray-600">
+                            <p>🖼️ <strong>Khổ in:</strong> A1, A0 hoặc theo yêu cầu</p>
+                            <p>🎨 <strong>Chất liệu:</strong> Tráng gương, canvas, giấy mỹ thuật</p>
+                            <p>📦 <strong>Giao hàng:</strong> Toàn quốc</p>
+                            <p>✏️ <strong>Thiết kế:</strong> Được chỉnh sửa tay để đẹp nhất</p>
+                        </div>
+
+                        <p class="text-sm text-gray-500 mb-4">
+                            Nhắn Zalo để được tư vấn và nhận báo giá chính xác — <strong class="text-gray-700">miễn phí</strong>.
+                        </p>
+
+                        <a href="{{ env('ZALO_CONTACT_URL', config('contact.zalo_url', 'https://zalo.me/')) }}"
+                           target="_blank" rel="noopener"
+                           class="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm transition-colors shadow mb-3">
+                            <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.477 2 2 6.145 2 11.243c0 2.908 1.436 5.507 3.686 7.237l-.47 3.52 3.843-1.962c.934.258 1.928.397 2.941.397 5.523 0 10-4.144 10-9.243C22 6.145 17.523 2 12 2z"/>
+                            </svg>
+                            Nhắn Zalo để đặt in
+                        </a>
+                        <button @click="showPrintModal = false"
+                                class="w-full py-2 text-sm text-gray-500 hover:text-gray-700">
+                            Để sau
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="bg-white rounded-xl border border-gray-200" style="height:600px;position:relative;overflow:hidden;">
                 <div id="family-tree" class="f3" style="width:100%;height:100%;"></div>
@@ -231,7 +280,6 @@
     @endpush
 
     @push('scripts')
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
     <script>
     (function() {
         const dataUrl    = '{{ route('genealogy.data') }}';
@@ -375,7 +423,6 @@
 
         // ── Tree rendering ───────────────────────────────────────────────
         let f3Chart = null; // Lưu reference để destroy khi reload
-        let exportBtnListenerAdded = false; // Đánh dấu đã add event listener chưa
 
         fetch(dataUrl, { headers: { Accept: 'application/json' } })
             .then(r => { if (! r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -501,34 +548,15 @@
 
             f3Chart.updateTree({ initial: true });
 
-            // PNG export - chỉ add event listener một lần
-            if (! exportBtnListenerAdded) {
-                document.getElementById('export-png-btn')?.addEventListener('click', async () => {
-                    if (! window.html2canvas) { alert('Thư viện xuất ảnh chưa sẵn sàng.'); return; }
-                    const btn = document.getElementById('export-png-btn');
-                    btn.disabled = true;
-                    btn.textContent = 'Đang xuất...';
-                    // Ẩn các nút thao tác trước khi chụp
-                    const actionBars = cont.querySelectorAll('[data-actions]');
-                    actionBars.forEach(el => el.style.display = 'none');
-                    try {
-                        const canvas = await html2canvas(cont, { backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false });
-                        const a = document.createElement('a');
-                        a.download = 'gia-pha.png';
-                        a.href = canvas.toDataURL('image/png');
-                        a.click();
-                    } catch { alert('Không thể xuất PNG.'); }
-                    finally {
-                        // Hiện lại các nút sau khi xuất xong
-                        actionBars.forEach(el => el.style.display = '');
-                        btn.disabled = false;
-                        btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Xuất PNG`;
-                    }
-                });
-                exportBtnListenerAdded = true;
-            }
         }
     })();
+    </script>
+
+    <script>
+    // Alpine component cho toolbar genealogy
+    function genealogyActions() {
+        return { showPrintModal: false };
+    }
     </script>
     @endpush
 @endif

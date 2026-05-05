@@ -74,6 +74,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('genealogy-data', [FamilyMemberController::class, 'treeData'])->name('genealogy.data');
     Route::post('genealogy-save', [FamilyMemberController::class, 'treeSave'])->name('genealogy.save');
     Route::post('genealogy/{genealogy}/add-relative', [FamilyMemberController::class, 'addRelative'])->name('genealogy.add-relative');
+    Route::get('genealogy/export-svg', [FamilyMemberController::class, 'exportSvg'])->name('genealogy.export-svg');
 
     // Download gia phả (chọn template → unlock → download)
     Route::get('print-orders', [PrintOrderController::class, 'index'])->name('print-orders.index');

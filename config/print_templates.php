@@ -2,9 +2,8 @@
 
 return [
     /*
-     * Template mặc định — Gia_Pha_3.svg (SVG injection approach)
-     * Canvas: 3508 × 2480 (A0 landscape)
-     * Capacity: 69 members (Gen 0–6)
+     * Template mặc định — Gia_Pha_3.svg
+     * Canvas: 3508 × 2480 (A4 landscape @ 300dpi)
      */
     'default' => [
         'id'          => 'default',
@@ -19,5 +18,23 @@ return [
         'title_size'  => 48,     // max font size, tự thu nhỏ nếu tên dài
         'preview_image' => null,
         'is_active'   => true,
+    ],
+
+    /*
+     * Template 2 — resources/views/print-templates/template_2/background.svg
+     * Canvas: 7022 × 4967 (= 2× template default, A2 landscape @ 300dpi)
+     * Layout tự động scale ×2 vì canvas_w = 7022 = 2 × 3508.
+     */
+    'template_2' => [
+        'id'            => 'template_2',
+        'name'          => 'Mẫu Cao Cấp',
+        'description'   => 'Thiết kế cao cấp, khổ lớn hơn.',
+        'svg_path'      => 'resources/views/print-templates/template_2/background.svg',
+        'couple_root'   => true,
+        'canvas_w'      => 7022,
+        'canvas_h'      => 4967,
+        'title_size'    => 96,   // 2× default (48 × 2)
+        'preview_image' => null,
+        'is_active'     => true,
     ],
 ];

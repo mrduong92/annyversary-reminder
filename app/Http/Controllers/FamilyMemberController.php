@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\FamilyMember;
 use App\Services\FamilyTreeService;
+use App\Services\FamilyTreeSvgService;
+use App\Services\PrintOrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +16,9 @@ use Illuminate\View\View;
 class FamilyMemberController extends Controller
 {
     public function __construct(
-        private readonly FamilyTreeService $tree,
+        private readonly FamilyTreeService    $tree,
+        private readonly FamilyTreeSvgService $svgService,
+        private readonly PrintOrderService    $printOrderService,
     ) {}
 
     public function index(): View
@@ -158,6 +162,25 @@ class FamilyMemberController extends Controller
 
         return redirect()->route('genealogy.index')
             ->with('success', "Đã xóa {$name} khỏi gia phả.");
+    }
+
+    /**
+     * Xuất gia phả dạng SVG vector — sắc nét tuyệt đối, không mất góc.
+     * CorelDRAW / Illustrator / Inkscape / trình duyệt đều mở được trực tiếp.
+     */
+    public function exportSvg(): \Illuminate\Http\Response
+    {
+        $group    = active_group();
+        $members  = $group->familyMembers;
+        $template = $this->printOrderService->getTemplate('default');
+
+        $svgContent = $this->svgService->generateContent($members, $template);
+        $filename   = 'gia-pha-' . str_replace([' ', '/'], '-', $group->name ?? 'family') . '.svg';
+
+        return response($svgContent, 200, [
+            'Content-Type'        => 'image/svg+xml; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 
     /** API: trả về JSON cho FamilyTree JS */
