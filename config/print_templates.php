@@ -14,9 +14,9 @@ return [
         'couple_root' => true,
         'canvas_w'    => 3508,
         'canvas_h'    => 2480,
-        'title_cx'    => 1754,   // center x — nằm giữa cuộn băng
-        'title_cy'    => 315,    // center y — nằm trong vùng màu đỏ của cuộn
-        'title_size'  => 44,     // max font size, tự thu nhỏ nếu tên dài
+        'title_cx'    => 1754,   // center x — nằm giữa cuộn băng (canvas center)
+        'title_cy'    => 295,    // center y — nằm trong vùng màu đỏ (Object 468 bắt đầu y=239)
+        'title_size'  => 48,     // max font size, tự thu nhỏ nếu tên dài
         'preview_image' => null,
         'is_active'   => true,
     ],

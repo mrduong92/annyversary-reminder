@@ -125,4 +125,7 @@ return [
 
     'reminder_days_before' => env('REMINDER_DAYS_BEFORE', '1,3'),
 
+    // Dev convenience: bỏ qua payment check khi download. Không bao giờ bật trên production.
+    'download_always_unlocked' => env('DOWNLOAD_ALWAYS_UNLOCKED', false),
+
 ];

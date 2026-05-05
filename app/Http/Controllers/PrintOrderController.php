@@ -43,7 +43,7 @@ class PrintOrderController extends Controller
                 $svgUrl = $this->svgService->generate($members, $selectedTemplate);
 
                 $validUnlock = $familyGroup->validUnlock(Auth::id());
-                $isUnlocked  = $validUnlock !== null;
+                $isUnlocked  = $validUnlock !== null || config('app.download_always_unlocked');
             }
         }
 
@@ -98,25 +98,32 @@ class PrintOrderController extends Controller
     {
         $request->validate(['template_id' => ['required', 'string']]);
 
-        $familyGroup = FamilyGroup::where('user_id', Auth::id())->firstOrFail();
-        $validUnlock = $familyGroup->validUnlock(Auth::id());
+        $familyGroup  = FamilyGroup::where('user_id', Auth::id())->firstOrFail();
+        $validUnlock  = $familyGroup->validUnlock(Auth::id());
+        $devUnlocked  = config('app.download_always_unlocked');
 
-        if (!$validUnlock) {
+        if (!$validUnlock && !$devUnlocked) {
             return redirect()
                 ->route('print-orders.index', ['template_id' => $request->template_id])
                 ->withErrors(['unlock' => 'Bạn cần mở khóa tải về trước.']);
         }
 
-        // Regenerate if file was lost
-        if (!$validUnlock->file_path || !Storage::disk('public')->exists($validUnlock->file_path)) {
-            $template   = $this->printOrderService->getTemplate($validUnlock->template_id ?? $request->template_id);
+        // Lấy file path từ unlock record, hoặc generate mới nếu:
+        // - Dev mode (validUnlock = null), hoặc
+        // - File đã bị xóa khỏi storage
+        $filePath = $validUnlock?->file_path;
+
+        if (!$filePath || !Storage::disk('public')->exists($filePath)) {
+            $template   = $this->printOrderService->getTemplate($request->template_id);
             $members    = $familyGroup->familyMembers;
             $svgContent = $this->svgService->generateContent($members, $template);
             $filePath   = $this->pdfService->generate($svgContent);
-            $validUnlock->update(['file_path' => $filePath]);
+
+            // Chỉ lưu lại khi có record thật (không lưu trong dev mode)
+            $validUnlock?->update(['file_path' => $filePath]);
         }
 
-        $absolutePath = Storage::disk('public')->path($validUnlock->file_path);
+        $absolutePath = Storage::disk('public')->path($filePath);
         $downloadName = 'gia-pha-' . str_replace([' ', '/'], '-', $familyGroup->name ?? 'family') . '.pdf';
 
         return response()->download($absolutePath, $downloadName, ['Content-Type' => 'application/pdf']);

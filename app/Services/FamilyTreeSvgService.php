@@ -31,14 +31,26 @@ class FamilyTreeSvgService
 
     // ── Public API ─────────────────────────────────────────────────────────────
 
-    /** Generate SVG, store to public disk, return URL (for web preview). */
+    /**
+     * Generate low-quality PNG preview (for web display).
+     * Renders SVG via Chromium screenshot so fonts & styles load correctly.
+     * Result is cached by groupId+templateId+treeUpdatedAt — invalidated on tree edits.
+     */
     public function generate(Collection $members, object $template): string
     {
-        $content  = $this->buildSvgContent($members, $template);
-        $groupId  = $members->first()?->family_group_id ?? 0;
-        $filename = 'family-trees/preview-' . md5($groupId . ($template->id ?? '')) . '.svg';
-        Storage::disk('public')->put($filename, $content);
-        return Storage::disk('public')->url($filename);
+        $groupId      = $members->first()?->family_group_id ?? 0;
+        $treeUpdated  = $members->first()?->familyGroup?->tree_updated_at?->timestamp ?? 0;
+        $cacheKey     = 'family-trees/preview-' . md5($groupId . ($template->id ?? '') . $treeUpdated) . '.png';
+
+        if (Storage::disk('public')->exists($cacheKey)) {
+            return Storage::disk('public')->url($cacheKey);
+        }
+
+        $svgContent = $this->buildSvgContent($members, $template);
+
+        $pngRelPath = $this->svgToPreviewPng($svgContent, $cacheKey);
+
+        return Storage::disk('public')->url($pngRelPath);
     }
 
     /** Return raw SVG string (for PDF pipeline). */
@@ -310,9 +322,13 @@ class FamilyTreeSvgService
     // ── Rendering ─────────────────────────────────────────────────────────────
 
     /**
-     * Title text overlaid on the scroll banner.
-     * Uses Lora italic bold (thư pháp-style) from Google Fonts.
-     * Auto-sizes so the text never overflows the scroll width (~820px).
+     * Title text uốn theo đường cong của ribbon cuộn.
+     *
+     * Dùng SVG <textPath> với quadratic bezier arc:
+     *   - Hai đầu arc ở y≈318 (góc trái/phải ribbon)
+     *   - Đỉnh arc ở y≈278 (giữa ribbon, cao hơn một chút)
+     *   - startOffset="50%" + text-anchor="middle" trên <textPath> → tự căn giữa
+     *   - SVG feDropShadow filter thay cho text-shadow
      */
     private function renderTitle(object $template, Collection $members): string
     {
@@ -321,38 +337,58 @@ class FamilyTreeSvgService
             return '';
         }
 
-        // Scroll ribbon center: Object 468 starts at x=1744, ribbon spans ≈820px wide
-        $cx      = (float) ($template->title_cx   ?? 1754);
-        $cy      = (float) ($template->title_cy   ?? 295);   // center of red ribbon
-        $maxSize = (int)   ($template->title_size ?? 48);
+        // ── Arc geometry (khớp với ribbon Object 468 trong Gia_Pha_3.svg) ────────
+        // Ribbon kéo dài từ x≈1100 đến x≈2408, đỉnh cong cao hơn hai đầu ~40px
+        $arcX1    = 1100.0;  // điểm đầu (trái)
+        $arcCX    = 1754.0;  // control point x (trung tâm canvas)
+        $arcX2    = 2408.0;  // điểm cuối (phải)
+        $arcY0    = 318.0;   // y tại hai đầu (thấp hơn)
+        $arcYPeak = 278.0;   // y tại đỉnh control point (cao hơn = cong lên)
 
-        // Each bold italic char ≈ 0.58× font-size wide
-        $nameUpper  = mb_strtoupper($name);
-        $charCount  = mb_strlen($nameUpper);
-        $maxWidth   = 820;
-        $size       = min($maxSize, (int) floor($maxWidth / max(1, $charCount * 0.58)));
-        $size       = max(24, $size);
+        // ── Font size tự động theo độ dài tên ────────────────────────────────────
+        $maxSize   = (int) ($template->title_size ?? 48);
+        $nameUpper = mb_strtoupper($name);
+        $arcLen    = $arcX2 - $arcX1;                // ~1308px
+        $size      = min($maxSize, (int) floor($arcLen / max(1, mb_strlen($nameUpper) * 0.60)));
+        $size      = max(26, $size);
 
-        $textNode = htmlspecialchars($nameUpper, ENT_XML1);
+        $text   = htmlspecialchars($nameUpper, ENT_XML1);
+        $pathId = 'ttl-curve';
+        $filtId = 'ttl-shadow';
 
-        // Drop-shadow để chữ nổi trên nền cuộn
-        $shadow = sprintf(
-            '<text x="%.1f" y="%.1f" text-anchor="middle" dominant-baseline="central"'
-            . ' font-family="\'Lora\',\'IM Fell English\',\'Georgia\',serif"'
-            . ' font-size="%d" font-weight="700" font-style="italic"'
-            . ' fill="rgba(0,0,0,0.35)" letter-spacing="3"'
-            . ' dx="2" dy="2">%s</text>',
-            $cx, $cy, $size, $textNode,
-        );
-        $main = sprintf(
-            '<text x="%.1f" y="%.1f" text-anchor="middle" dominant-baseline="central"'
-            . ' font-family="\'Lora\',\'IM Fell English\',\'Georgia\',serif"'
-            . ' font-size="%d" font-weight="700" font-style="italic"'
-            . ' fill="#ffffff" letter-spacing="3">%s</text>',
-            $cx, $cy, $size, $textNode,
+        // Quadratic bezier: M x1,y0 Q cx,yPeak x2,y0
+        $d = sprintf(
+            'M %.1f,%.1f Q %.1f,%.1f %.1f,%.1f',
+            $arcX1, $arcY0,
+            $arcCX, $arcYPeak,
+            $arcX2, $arcY0,
         );
 
-        return '<g id="family-title">' . $shadow . $main . '</g>';
+        // Defs: path + drop-shadow filter
+        $defs = sprintf(
+            '<defs>'
+            . '<path id="%s" d="%s" fill="none"/>'
+            . '<filter id="%s" x="-5%%" y="-40%%" width="110%%" height="180%%">'
+            .   '<feDropShadow dx="2" dy="2" stdDeviation="2"'
+            .   ' flood-color="#000000" flood-opacity="0.40"/>'
+            . '</filter>'
+            . '</defs>',
+            $pathId, $d,
+            $filtId,
+        );
+
+        // Title text theo arc — text-anchor="middle" trên <textPath> là đúng spec
+        $titleText = sprintf(
+            '<text font-family="\'Lora\',\'Georgia\',serif"'
+            . ' font-size="%d" font-weight="700" font-style="italic"'
+            . ' fill="#ffffff" letter-spacing="3"'
+            . ' filter="url(#%s)">'
+            . '<textPath href="#%s" startOffset="50%%" text-anchor="middle">%s</textPath>'
+            . '</text>',
+            $size, $filtId, $pathId, $text,
+        );
+
+        return '<g id="family-title">' . $defs . $titleText . '</g>';
     }
 
     /** Recursively render connection lines (parent→children T-bars, spouse dashes). */
@@ -517,20 +553,6 @@ class FamilyTreeSvgService
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /** Remove the pre-positioned placeholder frame paths (Objects 2–72). */
-    private function stripFixedSlots(string $svg): string
-    {
-        for ($i = 2; $i <= 72; $i++) {
-            // Matches self-closing <path ... id="Object N" .../>
-            $svg = preg_replace(
-                '/<path[^>]+id="Object ' . $i . '"[^>]*\/>/',
-                '',
-                $svg,
-            );
-        }
-        return $svg;
-    }
-
     /**
      * Inject calligraphy font import into SVG so title text can use it.
      *
@@ -558,6 +580,79 @@ class FamilyTreeSvgService
 
         return $svg;
     }
+
+    /**
+     * Render SVG → PNG preview via Chromium screenshot.
+     *
+     * Vấn đề với CSS override: SVG có width="3508" height="2480" là presentation attributes,
+     * CSS `svg { width: Xpx }` không luôn override được trong mọi trường hợp.
+     * Fix: thay trực tiếp attribute trên thẻ <svg> trước khi render.
+     *
+     * Output: 1170 × 828 px (A4 landscape ratio 297:210, ≈1/3 scale gốc).
+     */
+    private function svgToPreviewPng(string $svgContent, string $publicRelPath): string
+    {
+        $tempDir = storage_path('app/temp');
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
+        // Thay width/height trực tiếp trên thẻ <svg> — giữ nguyên viewBox để scale đúng
+        $previewW  = 1170;
+        $previewH  = 828;  // 1170 × (2480 / 3508) ≈ 827.8 → làm tròn 828
+        $scaledSvg = preg_replace('/(<svg\b[^>]*?)\s+width="[^"]*"/', '$1 width="' . $previewW . '"', $svgContent, 1);
+        $scaledSvg = preg_replace('/(<svg\b[^>]*?)\s+height="[^"]*"/', '$1 height="' . $previewH . '"', $scaledSvg, 1);
+
+        $uid      = Str::random(10);
+        $htmlFile = $tempDir . "/prev-{$uid}.html";
+        $pngFile  = $tempDir . "/prev-{$uid}.png";
+
+        // Inline SVG trong HTML để Chromium load được Google Fonts
+        $html = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+            . '<style>html,body{margin:0;padding:0;width:' . $previewW . 'px;height:' . $previewH . 'px;overflow:hidden;background:#fff;}</style>'
+            . '</head><body>' . $scaledSvg . '</body></html>';
+
+        file_put_contents($htmlFile, $html);
+
+        $cmd = sprintf(
+            'chromium --headless --disable-gpu --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --hide-scrollbars'
+            . ' --screenshot=%s --window-size=%d,%d %s 2>&1',
+            escapeshellarg($pngFile),
+            $previewW, $previewH,
+            escapeshellarg('file://' . $htmlFile),
+        );
+        exec($cmd, $output, $exitCode);
+
+        @unlink($htmlFile);
+
+        if ($exitCode !== 0 || !file_exists($pngFile)) {
+            // Fallback: lưu SVG nếu Chromium thất bại
+            $fallback = str_replace('.png', '.svg', $publicRelPath);
+            Storage::disk('public')->put($fallback, $svgContent);
+            @unlink($pngFile);
+            return $fallback;
+        }
+
+        Storage::disk('public')->put($publicRelPath, file_get_contents($pngFile));
+        @unlink($pngFile);
+
+        return $publicRelPath;
+    }
+
+    /** Remove the pre-positioned placeholder frame paths (Objects 2–72). */
+    private function stripFixedSlots(string $svg): string
+    {
+        for ($i = 2; $i <= 72; $i++) {
+            // Matches self-closing <path ... id="Object N" .../>
+            $svg = preg_replace(
+                '/<path[^>]+id="Object ' . $i . '"[^>]*\/>/',
+                '',
+                $svg,
+            );
+        }
+        return $svg;
+    }
+
 
     /** [nameSize, subSize, lineGap] based on rendered box width (px). */
     private function fontSizes(float $w): array

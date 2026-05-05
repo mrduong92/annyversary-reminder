@@ -143,27 +143,23 @@
 
         </div>
 
-        {{-- Cột phải: Preview SVG --}}
+        {{-- Cột phải: Preview PNG --}}
         <div class="lg:col-span-2">
-            {{-- Zoom controls (vanilla JS — không dùng Alpine scope để tránh conflict) --}}
-            <div class="flex items-center justify-between mb-2 px-1">
-                <p class="text-xs text-gray-400">Dùng nút để zoom, kéo ngang để xem full.</p>
-                <div class="flex items-center gap-1">
-                    <button onclick="svgZoom(-0.25)"
-                            class="w-7 h-7 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-base leading-none select-none">−</button>
-                    <span id="svg-zoom-label" class="text-xs text-gray-500 w-12 text-center tabular-nums">100%</span>
-                    <button onclick="svgZoom(+0.25)"
-                            class="w-7 h-7 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-base leading-none select-none">+</button>
-                    <button onclick="svgZoomReset()"
-                            class="ml-1 px-2 h-7 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-600 select-none">Fit</button>
+            <div class="relative rounded-lg overflow-hidden shadow">
+                {{-- Ảnh preview chất lượng thấp --}}
+                <img src="{{ $svg }}" alt="Bản xem trước gia phả"
+                     class="w-full block select-none" draggable="false">
+                {{-- Watermark overlay --}}
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none gap-3">
+                    <div class="bg-black/30 backdrop-blur-[1px] rounded-xl px-6 py-3 text-center">
+                        <p class="text-white font-bold text-sm tracking-widest opacity-90">BẢN XEM TRƯỚC</p>
+                        <p class="text-white/70 text-xs mt-0.5">Mở khóa để tải file chất lượng cao</p>
+                    </div>
                 </div>
             </div>
-            {{-- Scrollable preview --}}
-            <div class="bg-white shadow sm:rounded-lg overflow-auto" style="height: 720px;">
-                <img id="svg-preview-img" src="{{ $svg }}"
-                     alt="Bản xem trước gia phả" style="width:100%; display:block; min-width:100%;">
-            </div>
-            <p class="text-xs text-gray-400 mt-2 text-center">Bản xem trước — file tải về có độ phân giải cao hơn.</p>
+            <p class="text-xs text-gray-400 mt-2 text-center">
+                Bản xem trước — tải PDF để có file vector sắc nét khi in.
+            </p>
         </div>
     </div>
     @endif
@@ -265,23 +261,6 @@
 </div>
 
 <script>
-// ── SVG zoom — vanilla JS (không dùng Alpine scope để tránh conflict) ──────
-let _svgZoom = 1;
-function svgZoom(delta) {
-    _svgZoom = Math.min(4, Math.max(0.25, _svgZoom + delta));
-    const img   = document.getElementById('svg-preview-img');
-    const label = document.getElementById('svg-zoom-label');
-    if (img)   img.style.width = (_svgZoom * 100) + '%';
-    if (label) label.textContent = Math.round(_svgZoom * 100) + '%';
-}
-function svgZoomReset() {
-    _svgZoom = 1;
-    const img   = document.getElementById('svg-preview-img');
-    const label = document.getElementById('svg-zoom-label');
-    if (img)   img.style.width = '100%';
-    if (label) label.textContent = '100%';
-}
-
 function printOrderPage() {
     return {
         showUnlockModal: false,
