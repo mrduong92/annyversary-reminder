@@ -21,7 +21,7 @@ class User extends Authenticatable
     ];
 
     protected $attributes = [
-        'subscription_plan'          => 'free',
+        'subscription_plan'          => 'basic',
         'zns_count_this_year'        => 0,
         'ai_prayer_count_this_month' => 0,
         'ai_message_count_today'     => 0,
@@ -58,25 +58,27 @@ class User extends Authenticatable
 
     // ── Plan helpers ──────────────────────────────────────────────
 
-    public function isFree(): bool    { return ($this->subscription_plan ?? 'free') === 'free' || $this->isExpired(); }
-    public function isMini(): bool    { return $this->subscription_plan === 'mini' && ! $this->isExpired(); }
-    public function isPremium(): bool { return $this->subscription_plan === 'premium' && ! $this->isExpired(); }
-    public function isPaid(): bool    { return ! $this->isFree(); }
+    public function isBasic(): bool    { return ($this->subscription_plan ?? 'basic') === 'basic' || $this->isExpired(); }
+    public function isAdvanced(): bool { return $this->subscription_plan === 'advanced' && ! $this->isExpired(); }
+    public function isPaid(): bool     { return $this->isAdvanced(); }
+
+    // Legacy aliases — giữ để không break code cũ
+    public function isFree(): bool    { return $this->isBasic(); }
+    public function isPremium(): bool { return $this->isAdvanced(); }
 
     public function isExpired(): bool
     {
-        return $this->subscription_plan !== 'free'
+        return $this->subscription_plan === 'advanced'
             && $this->subscription_expires_at !== null
             && $this->subscription_expires_at->isPast();
     }
 
     public function planLabel(): string
     {
-        if ($this->isExpired()) return 'Free (hết hạn)';
+        if ($this->isExpired()) return 'Basic (hết hạn)';
         return match ($this->subscription_plan) {
-            'mini'    => 'Mini',
-            'premium' => 'Premium',
-            default   => 'Free',
+            'advanced' => 'Đại Gia Đình',
+            default    => 'Gia Đình',
         };
     }
 }

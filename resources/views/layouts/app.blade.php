@@ -253,13 +253,12 @@
                     <p class="text-sm font-medium text-gray-900 truncate">{{ Auth::user()->name }}</p>
                     <p class="text-xs text-gray-500">{{ Auth::user()->phone }}</p>
                 </div>
-                @php $plan = Auth::user()->fresh()->subscription_plan ?? 'free'; @endphp
+                @php $plan = Auth::user()->fresh()->subscription_plan ?? 'basic'; @endphp
                 <a href="{{ route('upgrade') }}" @class([
                     'text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 hover:opacity-80 transition-opacity',
-                    'bg-gray-100 text-gray-600' => $plan === 'free',
-                    'bg-primary-100 text-primary-700' => $plan === 'mini',
-                    'bg-amber-100 text-amber-700' => $plan === 'premium',
-                ])>{{ strtoupper($plan) }}</a>
+                    'bg-gray-100 text-gray-600'     => $plan === 'basic',
+                    'bg-amber-100 text-amber-700'   => $plan === 'advanced',
+                ])>{{ $plan === 'advanced' ? 'Đại Gia Đình' : 'Gia Đình' }}</a>
             </div>
             <form method="POST" action="{{ route('logout') }}" class="mt-1">
                 @csrf

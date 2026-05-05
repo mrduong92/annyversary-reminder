@@ -3,47 +3,38 @@
 namespace App\Services;
 
 use App\Models\User;
-use Carbon\Carbon;
 
 class SubscriptionService
 {
     /**
-     * Giới hạn theo plan.
-     * ZNS tính theo NĂM (không phải tháng).
-     * Events không giới hạn (được tạo tự động khi gia phả tạo người đã mất).
-     * Chỉ giới hạn số người nhận (recipients) và số tin nhắn ZNS/năm.
+     * Giới hạn theo plan — 2 gói: basic (free) và advanced (paid).
+     *
+     * Cả 2 gói đều không giới hạn ngày giỗ và gia phả.
+     * Chỉ khác nhau ở ZNS/năm và AI tin nhắn/ngày.
+     *
+     * ZNS cost:
+     *   basic:    60 tin/năm  × 300đ = 18.000đ/năm  (chi phí)
+     *   advanced: 360 tin/năm × 300đ = 108.000đ/năm (chi phí, bù vào revenue 149k)
      */
     private const LIMITS = [
-        'free' => [
-            'zns_events'          => PHP_INT_MAX, // không giới hạn (tạo tự động từ gia phả)
-            'recipients'          => 1,
-            'zns_per_year'        => 50,      // ~15,000đ/năm
-            'ai_prayers_per_month'=> 0,        // không có văn khấn AI
-            'ai_messages_per_day' => 20,       // chat cơ bản
-            'shares'              => 0,        // không share
-            'documents'           => 0,        // không RAG
-            'ram_mung_mot'        => false,
-            'import_image'        => false,
-            'can_crud_events_ai'  => false,    // không tạo/sửa ngày giỗ qua AI
-        ],
-        'mini' => [
+        'basic' => [
             'zns_events'          => PHP_INT_MAX, // không giới hạn
-            'recipients'          => 3,
-            'zns_per_year'        => 100,     // ~30,000đ/năm
-            'ai_prayers_per_month'=> PHP_INT_MAX,
-            'ai_messages_per_day' => 100,
-            'shares'              => 0,
+            'recipients'          => 2,
+            'zns_per_year'        => 60,           // ~5 tin/tháng
+            'ai_messages_per_day' => 10,
+            'ai_prayers_per_month'=> PHP_INT_MAX,  // văn khấn AI miễn phí
+            'shares'              => 1,
             'documents'           => 0,
             'ram_mung_mot'        => false,
             'import_image'        => false,
-            'can_crud_events_ai'  => true,
+            'can_crud_events_ai'  => false,
         ],
-        'premium' => [
-            'zns_events'          => PHP_INT_MAX, // không giới hạn
-            'recipients'          => 10,
-            'zns_per_year'        => 300,     // ~90,000đ/năm
-            'ai_prayers_per_month'=> PHP_INT_MAX,
+        'advanced' => [
+            'zns_events'          => PHP_INT_MAX,
+            'recipients'          => PHP_INT_MAX,
+            'zns_per_year'        => 360,          // ~30 tin/tháng
             'ai_messages_per_day' => PHP_INT_MAX,
+            'ai_prayers_per_month'=> PHP_INT_MAX,
             'shares'              => PHP_INT_MAX,
             'documents'           => 20,
             'ram_mung_mot'        => true,
@@ -52,35 +43,41 @@ class SubscriptionService
         ],
     ];
 
-    // ── Plan helpers ──────────────────────────────────────────────
+    // ── Plan helpers ──────────────────────────────────────────────────────────
 
     public function plan(User $user): string
     {
-        $plan = $user->subscription_plan ?? 'free';
+        $plan = $user->subscription_plan ?? 'basic';
 
-        // Downgrade nếu hết hạn
-        if ($plan !== 'free' && $user->subscription_expires_at?->isPast()) {
-            return 'free';
+        if ($plan === 'advanced' && $user->subscription_expires_at?->isPast()) {
+            return 'basic';
         }
 
-        return in_array($plan, ['free', 'mini', 'premium']) ? $plan : 'free';
+        return in_array($plan, ['basic', 'advanced']) ? $plan : 'basic';
     }
 
-    public function isFree(User $user): bool    { return $this->plan($user) === 'free'; }
-    public function isMini(User $user): bool    { return $this->plan($user) === 'mini'; }
-    public function isPremium(User $user): bool { return $this->plan($user) === 'premium'; }
-    public function isPaid(User $user): bool    { return ! $this->isFree($user); }
+    public function isBasic(User $user): bool    { return $this->plan($user) === 'basic'; }
+    public function isAdvanced(User $user): bool { return $this->plan($user) === 'advanced'; }
+    public function isPaid(User $user): bool     { return $this->isAdvanced($user); }
+
+    // Legacy aliases — giữ để không break code cũ gọi isFree/isPremium
+    public function isFree(User $user): bool    { return $this->isBasic($user); }
+    public function isPremium(User $user): bool { return $this->isAdvanced($user); }
 
     private function limit(User $user, string $key): mixed
     {
         return self::LIMITS[$this->plan($user)][$key] ?? 0;
     }
 
-    // ── Feature gates ─────────────────────────────────────────────
+    // ── Feature gates ─────────────────────────────────────────────────────────
+
+    public function canAddEvent(User $user): bool     { return true; } // không giới hạn cả 2 gói
+    public function canAddGiapha(User $user): bool    { return true; } // không giới hạn gia phả
 
     public function canAddRecipient(User $user): bool
     {
-        return $user->recipients()->count() < $this->limit($user, 'recipients');
+        $max = $this->limit($user, 'recipients');
+        return $max === PHP_INT_MAX || $user->recipients()->count() < $max;
     }
 
     public function canSendZns(User $user): bool
@@ -91,15 +88,14 @@ class SubscriptionService
 
     public function canGeneratePrayer(User $user): bool
     {
-        if ($this->limit($user, 'ai_prayers_per_month') === 0) return false;
-        $this->resetMonthlyPrayerIfNeeded($user);
-        return $user->ai_prayer_count_this_month < $this->limit($user, 'ai_prayers_per_month');
+        return $this->limit($user, 'ai_prayers_per_month') > 0;
     }
 
     public function canSendAgentMessage(User $user): bool
     {
         $this->resetDailyAiIfNeeded($user);
-        return $user->ai_message_count_today < $this->limit($user, 'ai_messages_per_day');
+        $max = $this->limit($user, 'ai_messages_per_day');
+        return $max === PHP_INT_MAX || $user->ai_message_count_today < $max;
     }
 
     public function canCreateShare(User $user): bool
@@ -118,57 +114,22 @@ class SubscriptionService
         return $user->familyDocuments()->count() < $max;
     }
 
-    public function canUseRamMungMot(User $user): bool
+    public function canUseRamMungMot(User $user): bool  { return (bool) $this->limit($user, 'ram_mung_mot'); }
+    public function canImportImage(User $user): bool     { return (bool) $this->limit($user, 'import_image'); }
+    public function canCrudEventsViaAi(User $user): bool { return (bool) $this->limit($user, 'can_crud_events_ai'); }
+
+    // ── Increment counters ────────────────────────────────────────────────────
+
+    public function incrementZnsCount(User $user): void            { $user->increment('zns_count_this_year'); }
+    public function incrementPrayerCount(User $user): void         { $user->increment('ai_prayer_count_this_month'); }
+    public function incrementAgentMessageCount(User $user): void   { $user->increment('ai_message_count_today'); }
+
+    // ── Limit getters for UI ──────────────────────────────────────────────────
+
+    public function znsLimit(User $user): int
     {
-        return (bool) $this->limit($user, 'ram_mung_mot');
-    }
-
-    public function canImportImage(User $user): bool
-    {
-        return (bool) $this->limit($user, 'import_image');
-    }
-
-    public function canCrudEventsViaAi(User $user): bool
-    {
-        return (bool) $this->limit($user, 'can_crud_events_ai');
-    }
-
-    public function canAddEvent(User $user): bool
-    {
-        // Không giới hạn số lượng ngày giỗ (được tạo tự động từ gia phả)
-        return true;
-    }
-
-    // ── Increment counters ────────────────────────────────────────
-
-    public function incrementZnsCount(User $user): void
-    {
-        $user->increment('zns_count_this_year');
-    }
-
-    public function incrementPrayerCount(User $user): void
-    {
-        $user->increment('ai_prayer_count_this_month');
-    }
-
-    public function incrementAgentMessageCount(User $user): void
-    {
-        $user->increment('ai_message_count_today');
-    }
-
-    // ── Limit getters for UI ──────────────────────────────────────
-
-    public function znsLimit(User $user): int        { return (int) $this->limit($user, 'zns_per_year'); }
-    public function recipientLimit(User $user): int  { return (int) $this->limit($user, 'recipients'); }
-    public function znsEventLimit(User $user): int
-    {
-        // Không giới hạn số lượng ngày giỗ
-        return PHP_INT_MAX;
-    }
-
-    public function eventCount(User $user): int
-    {
-        return $user->memorialEvents()->count();
+        $v = $this->limit($user, 'zns_per_year');
+        return $v === PHP_INT_MAX ? 9999 : (int) $v;
     }
 
     public function znsUsed(User $user): int
@@ -177,15 +138,19 @@ class SubscriptionService
         return $user->zns_count_this_year;
     }
 
-    public function recipientCount(User $user): int
+    public function recipientLimit(User $user): int
     {
-        return $user->recipients()->count();
+        $v = $this->limit($user, 'recipients');
+        return $v === PHP_INT_MAX ? 9999 : (int) $v;
     }
 
-    public function prayerCount(User $user): int
+    public function recipientCount(User $user): int  { return $user->recipients()->count(); }
+    public function eventCount(User $user): int       { return $user->memorialEvents()->count(); }
+
+    public function agentMessageLimit(User $user): int
     {
-        $this->resetMonthlyPrayerIfNeeded($user);
-        return $user->ai_prayer_count_this_month;
+        $v = $this->limit($user, 'ai_messages_per_day');
+        return $v === PHP_INT_MAX ? 9999 : (int) $v;
     }
 
     public function agentMessageCount(User $user): int
@@ -194,22 +159,18 @@ class SubscriptionService
         return $user->ai_message_count_today;
     }
 
-    public function shareCount(User $user): int
-    {
-        return $user->familyShares()->where('is_active', true)->count();
-    }
+    public function shareCount(User $user): int    { return $user->familyShares()->where('is_active', true)->count(); }
+    public function documentCount(User $user): int { return $user->familyDocuments()->count(); }
 
-    public function documentCount(User $user): int
-    {
-        return $user->familyDocuments()->count();
-    }
     public function documentLimit(User $user): int
     {
         $v = $this->limit($user, 'documents');
         return $v === PHP_INT_MAX ? 999 : (int) $v;
     }
 
-    // ── Reset helpers ─────────────────────────────────────────────
+    public function prayerCount(User $user): int { return $user->ai_prayer_count_this_month; }
+
+    // ── Reset helpers ─────────────────────────────────────────────────────────
 
     private function resetYearlyZnsIfNeeded(User $user): void
     {
@@ -220,13 +181,6 @@ class SubscriptionService
                 'zns_count_reset_year' => $thisYear,
             ]);
         }
-    }
-
-    private function resetMonthlyPrayerIfNeeded(User $user): void
-    {
-        $today = now('Asia/Ho_Chi_Minh')->startOfMonth()->toDateString();
-        // ai_prayer_count_this_month vẫn dùng monthly reset (dùng chung field cũ)
-        // Dùng ai_message_reset_date làm mốc reset prayer cùng lúc
     }
 
     private function resetDailyAiIfNeeded(User $user): void

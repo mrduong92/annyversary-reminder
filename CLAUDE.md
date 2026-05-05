@@ -165,51 +165,44 @@ timestamps
 
 ## Subscription Plans
 
-### FREE — Cá nhân (0đ)
+Hai gói — cả 2 đều dành cho gia đình, chỉ khác quota.
+DB enum: `basic` | `advanced`
+
+### BASIC — Gia Đình (0đ, miễn phí mãi)
 ```
-- Lịch giỗ: tối đa 5 sự kiện
-- ZNS: 5 tin/tháng, 2 số điện thoại nhận
+- Gia phả: không giới hạn số lượng, không giới hạn thành viên
+- Ngày giỗ: không giới hạn
+- Xuất PNG + SVG: miễn phí
+- ZNS: 60 tin/năm (~5 tin/tháng), 2 số điện thoại nhận
 - AI Agent: 10 tin/ngày, không RAG
-- Gia phả: chỉ xem (không tạo/sửa)
-- Export: PDF A4 có watermark (miễn phí — lead magnet viral)
-- Share chatbot: không có
-```
-
-### MINI — Gia đình (99k/năm)
-```
-- Lịch giỗ: không giới hạn sự kiện
-- ZNS: 30 tin/tháng, 10 số điện thoại nhận
-- AI Agent: 50 tin/ngày, RAG 3 tài liệu
-- Gia phả: tạo/sửa tối đa 50 thành viên, không có chi/cành
-- Export: PDF A4 không watermark + Excel lịch giỗ
 - Share chatbot: 1 link
+- In treo tường: liên hệ Zalo báo giá
 ```
 
-### PREMIUM — Dòng họ (299k/năm)
+### ADVANCED — Đại Gia Đình (149k/năm = 12.400đ/tháng)
 ```
-- Lịch giỗ: không giới hạn
-- ZNS: không giới hạn
-- AI Agent: không giới hạn, RAG không giới hạn
-- Gia phả: không giới hạn thành viên, quản lý Chi/Cành/Tộc
-- Export: tất cả formats
-- Share chatbot: 10 links
-- Hỏi lịch sử dòng họ qua AI
+- Gia phả: không giới hạn (giống Basic)
+- Ngày giỗ: không giới hạn
+- Xuất PNG + SVG: miễn phí
+- ZNS: 360 tin/năm (~30 tin/tháng), không giới hạn số điện thoại
+- AI Agent: không giới hạn, RAG 20 tài liệu
+- Share chatbot: không giới hạn
+- In treo tường: liên hệ Zalo báo giá
+- Import ảnh gia phả (AI)
+- Nhắc Rằm + Mùng Một
 ```
 
-### Thu tiền theo lần — Print-on-Demand (mọi plan đều dùng được)
+### Cost analysis
 ```
-PDF A0 cao cấp (300dpi, không watermark, tự in): 49k/lần
-  → Margin ~100%, cost gần 0
-  → File A0 vector = master size, xưởng in tự scale xuống A1/A2
+ZNS cost:
+  basic:    60  × 300đ = 18.000đ/năm  (chi phí/user)
+  advanced: 360 × 300đ = 108.000đ/năm (chi phí/user, bù vào 149k revenue)
 
-In A1 + ship toàn quốc:                         799k/lần
-In A0 + ship toàn quốc:                         1.299k/lần
-In A0 + đóng khung kính + ship:                 2.499k/lần
-  → Manual fulfillment giai đoạn đầu
-  → Margin ~45-50% sau chi phí in + ship
+AI cost (Gemini Flash-Lite):
+  ~0.7đ/tin → 100 tin/ngày = 70đ/ngày = 2.100đ/tháng (heavy user) → negligible
 
-Phục chế ảnh cũ bằng AI:                        49k/ảnh
-In ảnh thờ (sau phục chế) + ship:               299k/ảnh
+Margin advanced: 149k - 108k (ZNS) - 12k (server) ≈ 29k/năm (20%)
+Tại 1.000 paid users: 149M - 120M cost = 29M/năm lãi ròng
 ```
 
 Kiểm tra giới hạn qua `SubscriptionService::canSendZns(User $user): bool`

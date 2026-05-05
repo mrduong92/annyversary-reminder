@@ -82,11 +82,11 @@
             $limit  = app(\App\Services\SubscriptionService::class)->recipientLimit(Auth::user());
             $count  = app(\App\Services\SubscriptionService::class)->recipientCount(Auth::user());
         @endphp
-        @if ($plan !== 'premium')
+        @if ($plan !== 'advanced')
         <p class="mt-3 text-xs text-gray-400 text-right">
-            Đã dùng {{ $count }}/{{ $limit }} người nhận (gói {{ strtoupper($plan) }})
+            Đã dùng {{ $count }}/{{ $limit }} người nhận
             @if ($count >= $limit)
-                · <a href="#" class="text-primary-600 hover:underline">Nâng cấp</a>
+                · <a href="{{ route('upgrade') }}" class="text-primary-600 hover:underline">Nâng cấp</a>
             @endif
         </p>
         @endif

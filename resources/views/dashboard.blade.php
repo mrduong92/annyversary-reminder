@@ -32,10 +32,10 @@
             <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Văn khấn</p>
             <p class="text-3xl font-bold text-gray-900 mt-1">{{ $prayerCount }}</p>
             <p class="text-xs text-gray-400 mt-1">
-                @if ($plan === 'free')
-                    Không có (gói Free)
+                @if ($plan === 'basic')
+                    Miễn phí · không giới hạn
                 @else
-                    Không giới hạn (gói {{ strtoupper($plan) }})
+                    Không giới hạn
                 @endif
             </p>
         </div>
@@ -131,14 +131,14 @@
         </div>
     </div>
 
-    {{-- Upgrade banner (free plan) --}}
-    @if ($plan === 'free')
+    {{-- Upgrade banner (basic plan) --}}
+    @if ($plan === 'basic')
     <div class="mt-6 bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <div class="flex-1">
-            <p class="font-semibold text-white text-sm">Nâng cấp để dùng không giới hạn</p>
-            <p class="text-primary-200 text-xs mt-0.5">Basic 49k/năm — 10 ngày giỗ, 30 ZNS/tháng, AI văn khấn không giới hạn</p>
+            <p class="font-semibold text-white text-sm">Nâng cấp Đại Gia Đình — 149.000đ/năm</p>
+            <p class="text-primary-200 text-xs mt-0.5">ZNS 360 tin/năm · AI không giới hạn · Chia sẻ chatbot · Upload tài liệu gia đình</p>
         </div>
-        <a href="#" class="shrink-0 bg-white text-primary-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+        <a href="{{ route('upgrade') }}" class="shrink-0 bg-white text-primary-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-primary-50 transition-colors">
             Nâng cấp ngay
         </a>
     </div>
