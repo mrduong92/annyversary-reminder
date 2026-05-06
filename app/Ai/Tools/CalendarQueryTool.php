@@ -20,12 +20,14 @@ class CalendarQueryTool implements Tool
 
     public function description(): string
     {
-        return 'Truy vấn lịch giỗ của gia đình. Dùng khi người dùng hỏi về ngày giỗ, còn bao nhiêu ngày, ngày dương lịch tương ứng.';
+        return 'Truy vấn lịch sự kiện gia đình (ngày giỗ, sinh nhật, kỷ niệm...). '
+            . 'Dùng khi người dùng hỏi về ngày giỗ, sinh nhật, còn bao nhiêu ngày, ngày dương lịch tương ứng.';
     }
 
     public function handle(Request $request): string
     {
-        $keyword = (string) $request->string('keyword');
+        $keyword   = (string) $request->string('keyword');
+        $eventType = (string) $request->string('event_type'); // lọc theo loại nếu cần
 
         $query = MemorialEvent::where('user_id', $this->userId)->active();
 
@@ -33,20 +35,31 @@ class CalendarQueryTool implements Tool
             $query->where('family_group_id', $this->familyGroupId);
         }
 
+        // Lọc theo event_type nếu được chỉ định
+        if ($eventType && array_key_exists($eventType, MemorialEvent::TYPE_LABELS)) {
+            $query->where('event_type', $eventType);
+        }
+
         if ($keyword) {
-            $query->whereHas('familyMember', function ($q) use ($keyword) {
-                $q->where('name', 'like', "%{$keyword}%")
-                  ->orWhere('relationship', 'like', "%{$keyword}%")
-                  ->orWhere('pronoun', 'like', "%{$keyword}%");
+            $query->where(function ($q) use ($keyword) {
+                // Tìm theo title (sự kiện tự do)
+                $q->where('title', 'like', "%{$keyword}%")
+                  // Hoặc theo thành viên gia phả
+                  ->orWhereHas('familyMember', function ($q2) use ($keyword) {
+                      $q2->where('name', 'like', "%{$keyword}%")
+                         ->orWhere('relationship', 'like', "%{$keyword}%")
+                         ->orWhere('pronoun', 'like', "%{$keyword}%");
+                  });
             });
         }
 
         $events = $query->orderBy('solar_date_next')->get();
 
         if ($events->isEmpty()) {
+            $typeLabel = $eventType ? (MemorialEvent::TYPE_LABELS[$eventType] ?? 'sự kiện') : 'sự kiện';
             return $keyword
-                ? "Không tìm thấy ngày giỗ nào liên quan đến \"{$keyword}\"."
-                : 'Chưa có ngày giỗ nào được lưu.';
+                ? "Không tìm thấy {$typeLabel} nào liên quan đến \"{$keyword}\"."
+                : "Chưa có {$typeLabel} nào được lưu.";
         }
 
         $lines = $events->map(function (MemorialEvent $e) {
@@ -60,38 +73,42 @@ class CalendarQueryTool implements Tool
                 : '';
 
             $countdown = match (true) {
-                $daysUntil === 0                              => ' — HÔM NAY',
-                $daysUntil === 1                              => ' — ngày mai',
-                $daysUntil !== null && $daysUntil <= 365      => " — còn {$daysUntil} ngày",
-                default                                       => '',
+                $daysUntil === 0                         => ' — HÔM NAY',
+                $daysUntil === 1                         => ' — ngày mai',
+                $daysUntil !== null && $daysUntil <= 365 => " — còn {$daysUntil} ngày",
+                default                                  => '',
             };
 
-            // Hiển thị: pronoun > relationship > tên thuần
+            $label = '';
             if ($e->pronoun) {
-                $label = $this->readOnly
-                    ? " [{$e->pronoun}]"                               // share: bracket để rõ là danh xưng chung
-                    : " ({$e->pronoun})";
+                $label = $this->readOnly ? " [{$e->pronoun}]" : " ({$e->pronoun})";
             } elseif ($e->relationship) {
                 $label = $this->readOnly
                     ? " (theo chủ gia đình: {$e->relationship})"
                     : " ({$e->relationship})";
-            } else {
-                $label = '';
             }
 
-            return "• {$e->name}{$label}: {$dateStr}{$solarStr}{$countdown}";
+            $typeTag = ($e->event_type ?? MemorialEvent::DEFAULT_TYPE) !== MemorialEvent::DEFAULT_TYPE
+                ? ' [' . $e->typeLabel() . ']' : '';
+
+            return "• {$e->displayName()}{$label}{$typeTag}: {$dateStr}{$solarStr}{$countdown}";
         });
 
-        $data = $lines->implode("\n");
+        $data      = $lines->implode("\n");
+        $typeLabel = $eventType
+            ? (MemorialEvent::TYPE_LABELS[$eventType] ?? 'Sự kiện')
+            : 'Lịch sự kiện gia đình';
 
-        return "DỮ LIỆU LỊCH GIỖ:\n{$data}\n\n" . CalendarSkill::rules();
+        return "{$typeLabel}:\n{$data}\n\n" . CalendarSkill::rules();
     }
 
     public function schema(JsonSchema $schema): array
     {
         return [
             'keyword' => $schema->string()
-                ->description('Từ khoá tìm kiếm: tên người, danh xưng hoặc quan hệ. Để trống để lấy tất cả.'),
+                ->description('Từ khoá tìm kiếm: tên người, danh xưng, quan hệ, hoặc tiêu đề sự kiện. Để trống để lấy tất cả.'),
+            'event_type' => $schema->string()
+                ->description('Lọc theo loại: anniversary_of_death (ngày giỗ), birthday (sinh nhật), ancestor_anniversary (giỗ tổ), anniversary (kỷ niệm), event (sự kiện khác). Để trống = lấy tất cả.'),
         ];
     }
 }

@@ -100,7 +100,7 @@
                         {{-- Toggle Rằm & Mùng 1 --}}
                         <div class="border-t border-gray-100 pt-2 space-y-1">
                             <p class="text-xs text-gray-400 font-medium px-1">Nhắc ZNS hàng tháng</p>
-                            @foreach (['remind_ram' => 'Rằm (ngày 15)', 'remind_mung_mot' => 'Mùng 1 (ngày 1)'] as $field => $label)
+                            @foreach (['remind_full_moon' => 'Rằm (ngày 15)', 'remind_first_day' => 'Mùng 1 (ngày 1)'] as $field => $label)
                             <form method="POST" action="{{ route('family-groups.toggle-reminder') }}" class="flex items-center justify-between px-1">
                                 @csrf
                                 <input type="hidden" name="field" value="{{ $field }}">
@@ -190,10 +190,10 @@
                         'text-gray-700 hover:bg-gray-100' => !request()->routeIs('events.*'),
                     ])>
                     <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                    Ngày giỗ
+                    Ngày kỷ niệm
                 </a>
             </li>
-{{-- Người nhận thông báo được quản lý trong màn hình Ngày giỗ --}}
+{{-- Người nhận thông báo được quản lý trong màn hình Ngày kỷ niệm --}}
             <li>
                 <a href="{{ route('prayers.index') }}"
                     @class([

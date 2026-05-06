@@ -36,13 +36,12 @@ class EventController extends Controller
 
         $existingMemberIds = active_group()->memorialEvents()->pluck('family_member_id');
         $availableMembers  = active_group()->familyMembers()
-            ->whereNotNull('death_year') // Chỉ hiển thị thành viên đã mất
             ->whereNotIn('id', $existingMemberIds)
-            ->orderBy('death_year', 'desc')
+            ->orderBy('birth_year')
             ->orderBy('name')
             ->get();
         $allMembers = active_group()->familyMembers()
-            ->whereNotNull('death_year') // Chỉ hiển thị thành viên đã mất
+            ->orderBy('birth_year')
             ->orderBy('name')
             ->get();
 
@@ -60,13 +59,15 @@ class EventController extends Controller
             'solar_date_next' => $this->resolveSolarNext($request->date_type, $request->lunar_day, $request->lunar_month),
         ]);
 
-        // Sync ngược: cập nhật family_member.memorial_event_id
-        \App\Models\FamilyMember::where('id', $validated['family_member_id'])
-            ->whereNull('memorial_event_id')
-            ->update(['memorial_event_id' => $event->id]);
+        // Sync ngược (chỉ khi gắn thành viên)
+        if (! empty($validated['family_member_id'])) {
+            \App\Models\FamilyMember::where('id', $validated['family_member_id'])
+                ->whereNull('memorial_event_id')
+                ->update(['memorial_event_id' => $event->id]);
+        }
 
         return redirect()->route('events.index')
-            ->with('success', 'Đã thêm ngày giỗ cho ' . $event->displayName() . '.');
+            ->with('success', 'Đã thêm: ' . $event->displayName() . '.');
     }
 
     public function show(MemorialEvent $event): View
@@ -86,7 +87,7 @@ class EventController extends Controller
     {
         $this->authorizeOwner($event);
         $allMembers = active_group()->familyMembers()
-            ->whereNotNull('death_year') // Chỉ hiển thị thành viên đã mất
+            ->orderBy('birth_year')
             ->orderBy('name')
             ->get();
         return view('events.edit', compact('event', 'allMembers'));

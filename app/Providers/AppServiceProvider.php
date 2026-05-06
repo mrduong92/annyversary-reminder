@@ -23,7 +23,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('upload-document',   fn (User $u) => $svc()->canUploadDocument($u));
         Gate::define('share-chat',        fn (User $u) => $svc()->canCreateShare($u));
         Gate::define('import-image',      fn (User $u) => $svc()->canImportImage($u));
-        Gate::define('use-ram-mung-mot',  fn (User $u) => $svc()->canUseRamMungMot($u));
+        Gate::define('use-lunar-special-days',  fn (User $u) => $svc()->canUseLunarSpecialDays($u));
         Gate::define('generate-prayer',   fn (User $u) => $svc()->canGeneratePrayer($u));
         Gate::define('crud-events-ai',    fn (User $u) => $svc()->canCrudEventsViaAi($u));
         Gate::define('send-agent-message',fn (User $u) => $svc()->canSendAgentMessage($u));

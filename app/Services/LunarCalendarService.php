@@ -4,6 +4,9 @@ namespace App\Services;
 
 use Carbon\Carbon;
 use LucNham\LunarCalendar\LunarDateTime;
+use LucNham\LunarCalendar\Sexagenary;
+use LucNham\LunarCalendar\Terms\VnBranchIdentifier;
+use LucNham\LunarCalendar\Terms\VnStemIdentifier;
 
 class LunarCalendarService
 {
@@ -57,6 +60,30 @@ class LunarCalendarService
         return (int) Carbon::now(self::TZ)
             ->startOfDay()
             ->diffInDays($date->copy()->startOfDay(), false);
+    }
+
+    /**
+     * Chuyển ngày dương lịch → thông tin âm lịch đầy đủ.
+     * Trả về: ['day', 'month', 'year', 'is_leap', 'stem_day', 'branch_day', 'stem_year', 'branch_year']
+     */
+    public function solarToLunarInfo(Carbon $solar): array
+    {
+        $str = $solar->format('Y-m-d') . ' 00:00 ' . self::TZ;
+        $lunar = new LunarDateTime('G:' . $str, new \DateTimeZone(self::TZ));
+
+        $sex = new Sexagenary($lunar, VnStemIdentifier::class, VnBranchIdentifier::class);
+
+        return [
+            'day'        => (int) $lunar->day,
+            'month'      => (int) $lunar->month,
+            'year'       => (int) $lunar->year,
+            'is_leap'    => (bool) $lunar->isLeapMonth,
+            'stem_day'   => $sex->D->name,    // Can ngày (Giáp, Ất, ...)
+            'branch_day' => $sex->d->name,    // Chi ngày (Tý, Sửu, ...)
+            'branch_pos' => $sex->d->position, // 0=Tý .. 11=Hợi
+            'stem_year'  => $sex->Y->name,    // Can năm
+            'branch_year'=> $sex->y->name,    // Chi năm
+        ];
     }
 
     // ── Private ───────────────────────────────────────────────

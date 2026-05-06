@@ -2,8 +2,8 @@
 
     <div class="flex items-center justify-between mb-6">
         <div>
-            <h1 class="text-2xl font-semibold text-gray-900">Ngày giỗ</h1>
-            <p class="text-sm text-gray-500 mt-0.5">Quản lý lịch giỗ gia đình</p>
+            <h1 class="text-2xl font-semibold text-gray-900">Nhắc lịch</h1>
+            <p class="text-sm text-gray-500 mt-0.5">Ngày giỗ, sinh nhật, sự kiện gia đình</p>
         </div>
         <div class="flex items-center gap-2">
             <a href="{{ route('events.import') }}"
@@ -14,7 +14,7 @@
             <a href="{{ route('events.create') }}"
                 class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors focus:ring-4 focus:ring-primary-300">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                Thêm ngày giỗ
+                Thêm sự kiện
             </a>
         </div>
     </div>
@@ -28,7 +28,7 @@
             <p class="text-gray-500 text-sm">Chưa có ngày giỗ nào.</p>
             <a href="{{ route('events.create') }}"
                 class="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700">
-                + Thêm ngày giỗ đầu tiên
+                + Thêm sự kiện đầu tiên
             </a>
         </div>
     @else
@@ -52,6 +52,11 @@
                                 class="font-medium text-gray-900 hover:text-primary-600 hover:underline">
                                 {{ $event->displayName() }}
                             </a>
+                            @if(($event->event_type ?? \App\Models\MemorialEvent::DEFAULT_TYPE) !== \App\Models\MemorialEvent::DEFAULT_TYPE)
+                            <span class="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium">
+                                {{ $event->typeLabel() }}
+                            </span>
+                            @endif
                         </td>
                         <td class="px-5 py-3.5 hidden sm:table-cell text-gray-500">
                             {{ $event->familyMember?->relationship ?: '—' }}

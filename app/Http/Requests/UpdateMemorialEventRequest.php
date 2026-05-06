@@ -16,27 +16,23 @@ class UpdateMemorialEventRequest extends FormRequest
         $isSolar = $this->input('date_type') === 'solar';
 
         return [
-            'family_member_id' => ['required', 'integer', 'exists:family_members,id'],
-            'date_type'    => ['required', 'in:lunar,solar'],
-            'lunar_day'    => ['required', 'integer', 'min:1', 'max:' . ($isSolar ? 31 : 30)],
-            'lunar_month'  => ['required', 'integer', 'min:1', 'max:12'],
-            'notes'           => ['nullable', 'string', 'max:500'],
-            'is_active'       => ['boolean'],
-            'recipient_ids'   => ['nullable', 'array'],
-            'recipient_ids.*' => ['integer', 'exists:recipients,id'],
-        ];
-    }
-
-    public function messages(): array
-    {
-        return [
-            'family_member_id.required' => 'Vui lòng chọn thành viên.',
-            'lunar_day.required'   => 'Vui lòng nhập ngày âm lịch.',
-            'lunar_day.min'        => 'Ngày âm lịch phải từ 1 đến 30.',
-            'lunar_day.max'        => 'Ngày âm lịch phải từ 1 đến 30.',
-            'lunar_month.required' => 'Vui lòng nhập tháng âm lịch.',
-            'lunar_month.min'      => 'Tháng âm lịch phải từ 1 đến 12.',
-            'lunar_month.max'      => 'Tháng âm lịch phải từ 1 đến 12.',
+            'title' => [
+                'nullable', 'string', 'max:200',
+                function ($attribute, $value, $fail) {
+                    if (empty($value) && empty($this->input('family_member_id'))) {
+                        $fail('Vui lòng nhập tiêu đề hoặc chọn thành viên gia phả.');
+                    }
+                },
+            ],
+            'family_member_id' => ['nullable', 'integer', 'exists:family_members,id'],
+            'event_type'       => ['nullable', 'string', 'in:anniversary_of_death,ancestor_anniversary,birthday,anniversary,event'],
+            'date_type'        => ['required', 'in:lunar,solar'],
+            'lunar_day'        => ['required', 'integer', 'min:1', 'max:' . ($isSolar ? 31 : 30)],
+            'lunar_month'      => ['required', 'integer', 'min:1', 'max:12'],
+            'notes'            => ['nullable', 'string', 'max:500'],
+            'is_active'        => ['boolean'],
+            'recipient_ids'    => ['nullable', 'array'],
+            'recipient_ids.*'  => ['integer', 'exists:recipients,id'],
         ];
     }
 }

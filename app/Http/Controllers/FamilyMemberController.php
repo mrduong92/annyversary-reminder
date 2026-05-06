@@ -183,6 +183,118 @@ class FamilyMemberController extends Controller
         ]);
     }
 
+    /**
+     * Xuất gia phả định dạng GEDCOM 5.5.1 — tương thích Ancestry, FamilySearch, MacFamilyTree.
+     * Bao gồm: tên, giới tính, năm sinh, năm mất, quan hệ vợ chồng & cha/mẹ con cái.
+     */
+    public function exportGedcom(): \Illuminate\Http\Response
+    {
+        $group   = active_group();
+        $members = $group->familyMembers()->get();
+        $memberIds = $members->pluck('id');
+
+        $parentChild = DB::table('family_relationships')
+            ->where('type', 'parent_child')
+            ->whereIn('member_id', $memberIds)
+            ->whereIn('related_member_id', $memberIds)
+            ->get();
+
+        $spouses = DB::table('family_relationships')
+            ->where('type', 'spouse')
+            ->whereIn('member_id', $memberIds)
+            ->whereIn('related_member_id', $memberIds)
+            ->get();
+
+        // Build family units (FAM records) — mỗi cặp vợ chồng là 1 FAM
+        $famMap  = []; // "husb_id:wife_id" → fam_id
+        $famList = [];
+        $famIdx  = 1;
+
+        foreach ($spouses as $s) {
+            $key = min($s->member_id, $s->related_member_id) . ':' . max($s->member_id, $s->related_member_id);
+            if (! isset($famMap[$key])) {
+                $famMap[$key] = $famIdx++;
+                $famList[$key] = ['husb' => $s->member_id, 'wife' => $s->related_member_id, 'children' => []];
+            }
+        }
+
+        // Gắn children vào FAM
+        foreach ($parentChild as $pc) {
+            $parentId = $pc->member_id;
+            $childId  = $pc->related_member_id;
+            // Tìm FAM mà parent thuộc về (là husb hoặc wife)
+            foreach ($famList as $key => &$fam) {
+                if ($fam['husb'] == $parentId || $fam['wife'] == $parentId) {
+                    if (! in_array($childId, $fam['children'])) {
+                        $fam['children'][] = $childId;
+                    }
+                }
+            }
+            unset($fam);
+        }
+
+        // Generate GEDCOM
+        $membersById = $members->keyBy('id');
+        $lines = [];
+
+        // HEAD
+        $lines[] = "0 HEAD";
+        $lines[] = "1 GEDC";
+        $lines[] = "2 VERS 5.5.1";
+        $lines[] = "2 FORM LINEAGE-LINKED";
+        $lines[] = "1 CHAR UTF-8";
+        $lines[] = "1 SOUR GiaPhong";
+        $lines[] = "2 NAME Gia Phong";
+        $lines[] = "1 DATE " . now()->format('d M Y');
+
+        // INDI records
+        foreach ($members as $m) {
+            $nameParts = explode(' ', $m->name ?? '');
+            $lastName  = array_pop($nameParts);
+            $firstName = implode(' ', $nameParts);
+            $gedName   = trim($firstName . ' /' . $lastName . '/');
+
+            $lines[] = "0 @I{$m->id}@ INDI";
+            $lines[] = "1 NAME {$gedName}";
+            if ($m->pronoun) $lines[] = "2 TITL {$m->pronoun}";
+            $lines[] = "1 SEX " . ($m->gender === 'female' ? 'F' : 'M');
+            if ($m->birth_year) {
+                $lines[] = "1 BIRT";
+                $lines[] = "2 DATE {$m->birth_year}";
+            }
+            if ($m->death_year || ! $m->isAlive()) {
+                $lines[] = "1 DEAT" . ($m->death_year ? '' : ' Y');
+                if ($m->death_year) $lines[] = "2 DATE {$m->death_year}";
+                if ($m->death_day && $m->death_month) {
+                    $typeLabel = $m->death_date_type === 'solar' ? '(DL)' : '(AL)';
+                    $lines[] = "2 NOTE Ngày giỗ: {$m->death_day}/{$m->death_month} {$typeLabel}";
+                }
+            }
+        }
+
+        // FAM records
+        foreach ($famList as $key => $fam) {
+            $famId = $famMap[$key];
+            $lines[] = "0 @F{$famId}@ FAM";
+            $lines[] = "1 HUSB @I{$fam['husb']}@";
+            $lines[] = "1 WIFE @I{$fam['wife']}@";
+            foreach ($fam['children'] as $cid) {
+                $lines[] = "1 CHIL @I{$cid}@";
+            }
+        }
+
+        // TRLR
+        $lines[] = "0 TRLR";
+
+        $content  = implode("\n", $lines);
+        $filename = 'gia-pha-' . str_replace([' ', '/'], '-', $group->name ?? 'family') . '.ged';
+
+        return response($content, 200, [
+            'Content-Type'        => 'text/plain; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
     /** API: trả về JSON cho FamilyTree JS */
     public function treeData(): JsonResponse
     {

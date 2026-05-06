@@ -79,17 +79,17 @@ class FamilyGroupController extends Controller
     /** Toggle nhắc Rằm hoặc Mùng 1 cho group đang active */
     public function toggleReminder(Request $request): \Illuminate\Http\RedirectResponse
     {
-        if (Gate::denies('use-ram-mung-mot')) {
+        if (Gate::denies('use-lunar-special-days')) {
             return back()->with('error', 'Tính năng nhắc Rằm/Mùng 1 chỉ dành cho gói Premium.');
         }
 
-        $request->validate(['field' => ['required', 'in:remind_ram,remind_mung_mot']]);
+        $request->validate(['field' => ['required', 'in:remind_full_moon,remind_first_day']]);
 
         $group = active_group();
         $field = $request->input('field');
         $group->update([$field => ! $group->$field]);
 
-        $labels = ['remind_ram' => 'Rằm', 'remind_mung_mot' => 'Mùng 1'];
+        $labels = ['remind_full_moon' => 'Rằm', 'remind_first_day' => 'Mùng 1'];
         $state  = $group->$field ? 'bật' : 'tắt';
 
         return back()->with('success', "Đã {$state} nhắc {$labels[$field]}.");

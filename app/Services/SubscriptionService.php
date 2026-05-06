@@ -14,7 +14,7 @@ class SubscriptionService
      *
      * ZNS cost:
      *   basic:    60 tin/năm  × 300đ = 18.000đ/năm  (chi phí)
-     *   advanced: 360 tin/năm × 300đ = 108.000đ/năm (chi phí, bù vào revenue 149k)
+     *   advanced: 360 tin/năm × 300đ = 108.000đ/năm (chi phí, bù vào revenue 199k)
      */
     private const LIMITS = [
         'basic' => [
@@ -25,7 +25,7 @@ class SubscriptionService
             'ai_prayers_per_month'=> PHP_INT_MAX,  // văn khấn AI miễn phí
             'shares'              => 1,
             'documents'           => 0,
-            'ram_mung_mot'        => false,
+            'lunar_special_days'        => false,
             'import_image'        => false,
             'can_crud_events_ai'  => false,
         ],
@@ -37,7 +37,7 @@ class SubscriptionService
             'ai_prayers_per_month'=> PHP_INT_MAX,
             'shares'              => PHP_INT_MAX,
             'documents'           => 20,
-            'ram_mung_mot'        => true,
+            'lunar_special_days'        => true,
             'import_image'        => true,
             'can_crud_events_ai'  => true,
         ],
@@ -114,7 +114,7 @@ class SubscriptionService
         return $user->familyDocuments()->count() < $max;
     }
 
-    public function canUseRamMungMot(User $user): bool  { return (bool) $this->limit($user, 'ram_mung_mot'); }
+    public function canUseLunarSpecialDays(User $user): bool  { return (bool) $this->limit($user, 'lunar_special_days'); }
     public function canImportImage(User $user): bool     { return (bool) $this->limit($user, 'import_image'); }
     public function canCrudEventsViaAi(User $user): bool { return (bool) $this->limit($user, 'can_crud_events_ai'); }
 

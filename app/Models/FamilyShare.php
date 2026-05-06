@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
+// Không cần import thêm — FamilyGroup là sibling model
+
 class FamilyShare extends Model
 {
     protected $fillable = [
-        'user_id', 'share_token', 'name', 'is_active', 'expires_at',
+        'user_id', 'share_token', 'type', 'name', 'is_active', 'expires_at',
     ];
 
     protected function casts(): array
@@ -32,6 +34,11 @@ class FamilyShare extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function familyGroup(): BelongsTo
+    {
+        return $this->belongsTo(FamilyGroup::class);
     }
 
     public function isExpired(): bool

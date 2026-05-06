@@ -8,14 +8,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FamilyGroup extends Model
 {
-    protected $fillable = ['user_id', 'name', 'color', 'is_default', 'remind_ram', 'remind_mung_mot', 'tree_updated_at'];
+    protected $fillable = ['user_id', 'name', 'color', 'is_default', 'remind_full_moon', 'remind_first_day', 'tree_updated_at'];
 
     protected function casts(): array
     {
         return [
             'is_default'       => 'boolean',
-            'remind_ram'       => 'boolean',
-            'remind_mung_mot'  => 'boolean',
+            'remind_full_moon'       => 'boolean',
+            'remind_first_day'  => 'boolean',
             'tree_updated_at'  => 'datetime',
         ];
     }
@@ -96,6 +96,23 @@ class FamilyGroup extends Model
 
     public function activeShare(): ?FamilyShare
     {
-        return $this->familyShares()->where('is_active', true)->first();
+        return $this->familyShares()->where('is_active', true)->where('type', 'chatbot')->first();
+    }
+
+    /** Tạo hoặc lấy share link cho cây gia phả (view-only, không cần auth) */
+    public function getOrCreateTreeShare(): FamilyShare
+    {
+        return $this->familyShares()->where('type', 'tree')->first()
+            ?? $this->familyShares()->create([
+                'user_id'   => $this->user_id,
+                'type'      => 'tree',
+                'name'      => 'Cây gia phả ' . $this->name,
+                'is_active' => true,
+            ]);
+    }
+
+    public function activeTreeShare(): ?FamilyShare
+    {
+        return $this->familyShares()->where('type', 'tree')->where('is_active', true)->first();
     }
 }

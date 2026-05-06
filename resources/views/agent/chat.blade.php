@@ -185,9 +185,9 @@ function chatAgent() {
         prayerDetected: false,  // flag khi PrayerTool được gọi trong turn hiện tại
         hints: [
             'Giỗ ông nội năm nay vào ngày mấy?',
-            'Còn bao nhiêu ngày đến ngày giỗ gần nhất?',
             'Soạn văn khấn giỗ ông nội giúp tôi',
-            'Xem tất cả ngày giỗ trong gia đình',
+            'Tuần này ngày nào tốt để làm giỗ?',
+            'Soạn văn khấn cúng Rằm tháng này',
         ],
 
         async init() {

@@ -61,10 +61,10 @@
         <div class="mb-5">
             <span class="text-xs font-semibold text-yellow-400 uppercase tracking-widest">Đại Gia Đình</span>
             <div class="flex items-end gap-2 mt-1">
-                <p class="text-4xl font-bold">149.000đ</p>
+                <p class="text-4xl font-bold">199.000đ</p>
                 <p class="text-gray-400 mb-1">/ năm</p>
             </div>
-            <p class="text-sm text-gray-400 mt-0.5">≈ 12.400đ/tháng — ít hơn 1 ly cà phê</p>
+            <p class="text-sm text-gray-400 mt-0.5">≈ 16.600đ/tháng — bằng 1 ly cà phê</p>
         </div>
 
         <ul class="space-y-2.5 text-sm text-gray-300 flex-1 mb-6">
@@ -94,7 +94,7 @@
             <input type="hidden" name="plan" value="advanced">
             <button type="submit"
                     class="block w-full text-center py-3 px-4 bg-yellow-400 hover:bg-yellow-300 text-gray-900 text-sm font-bold rounded-xl transition-colors shadow-lg shadow-yellow-400/20">
-                Nâng cấp — 149.000đ/năm
+                Nâng cấp — 199.000đ/năm
             </button>
         </form>
         @endif

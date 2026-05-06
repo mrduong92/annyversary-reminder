@@ -60,6 +60,7 @@ class FamilyMember extends Model
                     $member->memorialEvents()->create([
                         'user_id'         => $member->user_id,
                         'family_group_id' => $member->family_group_id,
+                        'event_type'      => 'anniversary_of_death',
                         'lunar_day'       => $member->death_day,
                         'lunar_month'     => $member->death_month,
                         'date_type'       => $type,

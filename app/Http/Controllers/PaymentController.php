@@ -14,7 +14,7 @@ use Illuminate\View\View;
 class PaymentController extends Controller
 {
     private const PRICES = [
-        'advanced' => 149000,
+        'advanced' => 199000,
     ];
 
     public function __construct(private readonly SubscriptionService $subscription) {}

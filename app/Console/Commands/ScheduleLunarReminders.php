@@ -45,8 +45,8 @@ class ScheduleLunarReminders extends Command
 
         // Lấy tất cả family groups đã bật tính năng tương ứng
         $groups = FamilyGroup::query()
-            ->when($isRam,     fn ($q) => $q->where('remind_ram', true))
-            ->when($isMungMot, fn ($q) => $q->where('remind_mung_mot', true))
+            ->when($isRam,     fn ($q) => $q->where('remind_full_moon', true))
+            ->when($isMungMot, fn ($q) => $q->where('remind_first_day', true))
             ->with('user')
             ->get();
 

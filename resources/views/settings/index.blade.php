@@ -12,7 +12,7 @@
             </div>
             
             <div class="p-5 space-y-4">
-                @foreach (['remind_ram' => 'Nhắc ngày Rằm (15 âm lịch)', 'remind_mung_mot' => 'Nhắc Mùng 1 âm lịch'] as $field => $label)
+                @foreach (['remind_full_moon' => 'Nhắc ngày Rằm (15 âm lịch)', 'remind_first_day' => 'Nhắc Mùng 1 âm lịch'] as $field => $label)
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm font-medium text-gray-900">{{ $label }}</p>

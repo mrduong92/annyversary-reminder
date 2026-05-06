@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AgentController;
+use App\Http\Controllers\GedcomImportController;
+use App\Http\Controllers\PublicTreeController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
@@ -75,6 +77,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('genealogy-save', [FamilyMemberController::class, 'treeSave'])->name('genealogy.save');
     Route::post('genealogy/{genealogy}/add-relative', [FamilyMemberController::class, 'addRelative'])->name('genealogy.add-relative');
     Route::get('genealogy/export-svg', [FamilyMemberController::class, 'exportSvg'])->name('genealogy.export-svg');
+    Route::get('genealogy/export-gedcom', [FamilyMemberController::class, 'exportGedcom'])->name('genealogy.export-gedcom');
+    Route::get('genealogy/import-gedcom', [GedcomImportController::class, 'index'])->name('genealogy.import-gedcom');
+    Route::post('genealogy/import-gedcom/preview', [GedcomImportController::class, 'preview'])->name('genealogy.import-gedcom.preview');
+    Route::post('genealogy/import-gedcom/confirm', [GedcomImportController::class, 'confirm'])->name('genealogy.import-gedcom.confirm');
 
     // Download gia phả (chọn template → unlock → download)
     Route::get('print-orders', [PrintOrderController::class, 'index'])->name('print-orders.index');
@@ -82,13 +88,21 @@ Route::middleware(['auth'])->group(function () {
     Route::get('print-orders/download', [PrintOrderController::class, 'download'])->name('print-orders.download');
     Route::get('print-orders/{order}', [PrintOrderController::class, 'show'])->name('print-orders.show');
 
-    // Share — toggle link của group đang active (JSON API, gọi từ chat UI)
+    // Share chatbot — toggle link
     Route::post('share/enable', [ShareController::class, 'enable'])->name('share.enable');
     Route::post('share/disable', [ShareController::class, 'disable'])->name('share.disable');
+
+    // Share cây gia phả — toggle link
+    Route::post('share/tree/enable', [PublicTreeController::class, 'enable'])->name('share-tree.enable');
+    Route::post('share/tree/disable', [PublicTreeController::class, 'disable'])->name('share-tree.disable');
 });
 
 // Share link public — không cần auth
 Route::get('s/{token}', [ShareController::class, 'show'])->name('share.public');
+
+// Chia sẻ cây gia phả — view only, không cần auth
+Route::get('gia-pha/{token}', [PublicTreeController::class, 'show'])->name('public-tree.show');
+Route::get('gia-pha/{token}/data', [PublicTreeController::class, 'data'])->name('public-tree.data');
 Route::post('s/{token}/stream', [ShareController::class, 'stream'])->name('share.stream');
 Route::get('s/{token}/history', [ShareController::class, 'history'])->name('share.history');
 
