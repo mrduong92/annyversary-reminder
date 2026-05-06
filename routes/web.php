@@ -40,6 +40,8 @@ Route::middleware(['auth'])->group(function () {
     // Events
     Route::resource('events', EventController::class)->except(['show']);
     Route::get('events/{event}', [EventController::class, 'show'])->name('events.show');
+    Route::post('events/{event}/recipients/{recipient}/attach', [EventController::class, 'attachRecipient'])->name('events.recipients.attach');
+    Route::post('events/{event}/recipients/{recipient}/detach', [EventController::class, 'detachRecipient'])->name('events.recipients.detach');
 
     // Người nhận thông báo — quản lý trong màn hình ngày giỗ
     Route::resource('recipients', RecipientController::class)->except(['show']);

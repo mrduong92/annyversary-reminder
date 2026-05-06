@@ -116,6 +116,21 @@ class EventController extends Controller
             ->with('success', 'Đã xóa ngày giỗ ' . $name . '.');
     }
 
+    public function attachRecipient(MemorialEvent $event, \App\Models\Recipient $recipient): RedirectResponse
+    {
+        $this->authorizeOwner($event);
+        abort_if($recipient->user_id !== Auth::id(), 403);
+        $event->recipients()->syncWithoutDetaching([$recipient->id]);
+        return back()->with('success', 'Đã thêm ' . $recipient->name . ' vào danh sách nhận thông báo.');
+    }
+
+    public function detachRecipient(MemorialEvent $event, \App\Models\Recipient $recipient): RedirectResponse
+    {
+        $this->authorizeOwner($event);
+        $event->recipients()->detach($recipient->id);
+        return back()->with('success', 'Đã xóa ' . $recipient->name . ' khỏi danh sách nhận thông báo.');
+    }
+
     private function resolveSolarNext(string $dateType, int $day, int $month): \Carbon\Carbon
     {
         return $dateType === 'solar'
